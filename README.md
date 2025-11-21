@@ -1,0 +1,1 @@
+# プロンプト・パック（System/Task/Rubric/Copilot）\n生成日時: 20251121_1511\n
