@@ -1,0 +1,25 @@
+{
+  "Prompt: Pull Request": {
+    "prefix": "/pr:",
+    "body": [
+      "【PR説明】目的:$1 変更点:$2 リスク:$3 ロールバック:$4",
+      "【テスト】正常:$5 失敗:$6 境界:$7"
+    ],
+    "description": "PR テンプレ"
+  },
+  "Prompt: UI States": {
+    "prefix": "/ui:",
+    "body": ["Loading/Empty/Error・a11y・レスポンシブ・E2E例を追加して"],
+    "description": "UI状態"
+  },
+  "Prompt: Env Externalize": {
+    "prefix": "/env:",
+    "body": ["ハードコードを列挙し、.env + 設定モジュールへ移し、スキーマ検証を追加"],
+    "description": "設定外出し"
+  },
+  "Prompt: API Contract First": {
+    "prefix": "/contract:",
+    "body": ["OpenAPI 3.1 で定義→TS/Goの型/クライアント生成→雛形を提示（標準エラー/バリデーション/認可含む）"],
+    "description": "契約駆動"
+  }
+}

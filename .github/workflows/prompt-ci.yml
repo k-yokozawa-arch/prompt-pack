@@ -1,0 +1,21 @@
+name: prompt-ci
+on: [push, pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Markdown lint
+        uses: avto-dev/markdown-lint@v1
+        with:
+          config: ''
+      - name: JSON lint
+        run: |
+          set -e
+          if command -v jq >/dev/null 2>&1; then
+            find . -name "*.json" -print0 | xargs -0 -I{} sh -c 'cat {} | jq . >/dev/null'
+          else
+            echo "jq not found, installing..."
+            sudo apt-get update && sudo apt-get install -y jq
+            find . -name "*.json" -print0 | xargs -0 -I{} sh -c 'cat {} | jq . >/dev/null'
+          fi
