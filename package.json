@@ -1,0 +1,14 @@
+{
+  "name": "prompt-pack",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "gen": "make gen",
+    "dev": "make dev",
+    "doctor": "make doctor",
+    "contract:check": "make check"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^6.7.0"
+  }
+}
