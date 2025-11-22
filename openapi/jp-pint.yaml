@@ -1,0 +1,442 @@
+openapi: 3.0.3
+info:
+  title: JP PINT Invoice API
+  version: 1.0.0
+  description: |
+    Contract-first JP PINT compliant invoice validation and issuance API.
+    Contract owner: Billing Platform Team.
+  contact:
+    name: X-Smart Neo Support
+    url: https://example.com/support
+    email: support@example.com
+servers:
+  - url: https://api.example.com
+    description: Production
+  - url: https://staging-api.example.com
+    description: Staging
+tags:
+  - name: invoices
+    description: JP PINT invoice validation and issuance
+externalDocs:
+  description: JP PINT specification
+  url: https://pint-furi.github.io/
+paths:
+  /invoices/validate:
+    post:
+      tags: [invoices]
+      summary: Validate invoice draft against JP PINT
+      operationId: validateInvoice
+      security:
+        - bearerAuth: []
+      x-slo:
+        p95_ms: 3000
+        max_lines: 100
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceDraft'
+            examples:
+              valid:
+                value:
+                  issueDate: '2024-04-01'
+                  dueDate: '2024-04-30'
+                  currency: JPY
+                  supplier:
+                    name: Alpha Corp
+                    taxId: T1234567890123
+                    postal: 1000001
+                    address: 東京都千代田区1-1
+                    countryCode: JP
+                  customer:
+                    name: Bravo Inc
+                    taxId: T9876543210000
+                    postal: 1500001
+                    address: 東京都渋谷区2-2
+                    countryCode: JP
+                  lines:
+                    - description: 開発作業
+                      quantity: 10
+                      unitCode: HUR
+                      unitPrice: 12000
+                      taxCategory: S
+                      taxRate: 0.1
+                  notes: 請求書一式
+      responses:
+        '200':
+          $ref: '#/components/responses/ValidationCompleted'
+        '400':
+          description: Validation error (schema)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /invoices:
+    post:
+      tags: [invoices]
+      summary: Issue invoice and persist XML/PDF
+      operationId: issueInvoice
+      security:
+        - bearerAuth: []
+      x-slo:
+        p95_ms: 10000
+        max_lines: 100
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceDraft'
+      responses:
+        '201':
+          $ref: '#/components/responses/InvoiceIssuedResponse'
+        '400':
+          description: Business validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Duplicate invoice number or conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /invoices/{id}:
+    get:
+      tags: [invoices]
+      summary: Get invoice metadata and signed URLs
+      operationId: getInvoice
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/TenantId'
+        - name: id
+          in: path
+          required: true
+          description: Invoice identifier (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          $ref: '#/components/responses/InvoiceRecordResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      description: Correlation ID for tracing and audit hash chain
+      required: true
+      schema:
+        type: string
+        maxLength: 64
+    TenantId:
+      name: X-Tenant-Id
+      in: header
+      description: Tenant identifier for RBAC and storage segregation
+      required: true
+      schema:
+        type: string
+        maxLength: 64
+  responses:
+    2xxSuccess:
+      description: Generic success placeholder (for lint rule; concrete 2xx responses are defined per operation)
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ForbiddenError'
+    ValidationCompleted:
+      description: Validation completed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationResponse'
+    InvoiceIssuedResponse:
+      description: Invoice issued
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InvoiceIssued'
+    InvoiceRecordResponse:
+      description: Invoice metadata
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InvoiceRecord'
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InternalError'
+  schemas:
+    Party:
+      type: object
+      required: [name, taxId, postal, address, countryCode]
+      properties:
+        name:
+          type: string
+          maxLength: 140
+        taxId:
+          type: string
+          maxLength: 20
+          description: Japan TIN with leading T
+        postal:
+          type: string
+          pattern: '^[0-9]{7}$'
+        address:
+          type: string
+          maxLength: 280
+        countryCode:
+          type: string
+          pattern: '^[A-Z]{2}$'
+          enum: [JP]
+    LineItem:
+      type: object
+      required: [description, quantity, unitCode, unitPrice, taxCategory, taxRate]
+      properties:
+        description:
+          type: string
+          maxLength: 240
+        quantity:
+          type: number
+          format: double
+          minimum: 0
+        unitCode:
+          type: string
+          description: UNECE unit code
+          enum: [EA, HUR, MTR, D64, KGM, LTR]
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0
+        taxCategory:
+          type: string
+          description: JP PINT tax category code
+          enum: [S, Z, E, O, AE, K, G]
+        taxRate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+    InvoiceDraft:
+      type: object
+      required:
+        - supplier
+        - customer
+        - issueDate
+        - dueDate
+        - currency
+        - lines
+      properties:
+        invoiceNumber:
+          type: string
+          maxLength: 35
+        supplier:
+          $ref: '#/components/schemas/Party'
+        customer:
+          $ref: '#/components/schemas/Party'
+        issueDate:
+          type: string
+          format: date
+        dueDate:
+          type: string
+          format: date
+        currency:
+          type: string
+          enum: [JPY]
+        notes:
+          type: string
+          maxLength: 1000
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/LineItem'
+    ValidationErrorItem:
+      type: object
+      required: [code, path, message, ruleId]
+      properties:
+        code:
+          type: string
+        path:
+          type: string
+        message:
+          type: string
+        ruleId:
+          type: string
+        severity:
+          type: string
+          enum: [error, warning]
+    ValidationResponse:
+      type: object
+      required: [valid, errors]
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationErrorItem'
+        totals:
+          type: object
+          properties:
+            subtotal:
+              type: number
+              format: double
+            tax:
+              type: number
+              format: double
+            grandTotal:
+              type: number
+              format: double
+    InvoiceIssued:
+      type: object
+      required: [invoiceId, status, xmlUrl]
+      properties:
+        invoiceId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [draft, issued, failed]
+        xmlUrl:
+          type: string
+          format: uri
+          description: Signed URL valid for configured TTL
+        pdfUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+    InvoiceRecord:
+      type: object
+      required: [invoiceId, status, createdAt, updatedAt, xmlUrl]
+      properties:
+        invoiceId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [draft, issued, failed]
+        xmlUrl:
+          type: string
+          format: uri
+        pdfUrl:
+          type: string
+          format: uri
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        audit:
+          $ref: '#/components/schemas/AuditEntry'
+    AuditEntry:
+      type: object
+      required: [auditId, corrId, tenantId, actor, action, timestamp, hash, prevHash]
+      properties:
+        auditId:
+          type: string
+          format: uuid
+        corrId:
+          type: string
+        tenantId:
+          type: string
+        actor:
+          type: string
+        action:
+          type: string
+          enum: [invoice.issue, invoice.validate]
+        timestamp:
+          type: string
+          format: date-time
+        hash:
+          type: string
+        prevHash:
+          type: string
+    ValidationErrorResponse:
+      type: object
+      required: [errors]
+      properties:
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationErrorItem'
+    ForbiddenError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: FORBIDDEN
+        message:
+          type: string
+          example: Tenant or role missing
+    ConflictError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: CONFLICT
+        message:
+          type: string
+          example: Duplicate invoice number
+    NotFoundError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: NOT_FOUND
+        message:
+          type: string
+    InternalError:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code:
+          type: string
+          example: INTERNAL_ERROR
+        message:
+          type: string
+        retryable:
+          type: boolean

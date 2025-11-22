@@ -1,0 +1,422 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Audit ZIP Export API",
+    "version": "1.0.0",
+    "description": "JP e-Document compliance audit ZIP export (contract-first).",
+    "contact": {
+      "name": "X-Smart Neo Support",
+      "url": "https://example.com/support",
+      "email": "support@example.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.example.com",
+      "description": "Production"
+    },
+    {
+      "url": "https://staging-api.example.com",
+      "description": "Staging"
+    }
+  ],
+  "tags": [
+    {
+      "name": "audit",
+      "description": "Audit archive export"
+    }
+  ],
+  "paths": {
+    "/audit/zip": {
+      "post": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Enqueue audit ZIP export job",
+        "operationId": "enqueueAuditZip",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-slo": {
+          "p95_ms": 10000,
+          "max_background_p95_ms": 60000
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorrelationId"
+          },
+          {
+            "$ref": "#/components/parameters/TenantId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditZipRequest"
+              },
+              "examples": {
+                "default": {
+                  "value": {
+                    "from": "2025-01-01",
+                    "to": "2025-03-31",
+                    "partner": "BRV-123",
+                    "format": "zip"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Job accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditZipJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/audit/jobs/{jobId}": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Get audit ZIP job status",
+        "operationId": "getAuditZipJob",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorrelationId"
+          },
+          {
+            "$ref": "#/components/parameters/TenantId"
+          },
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditZipJob"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "CorrelationId": {
+        "name": "X-Correlation-Id",
+        "in": "header",
+        "required": true,
+        "description": "Correlation ID for tracing and audit hash chain",
+        "schema": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "TenantId": {
+        "name": "X-Tenant-Id",
+        "in": "header",
+        "required": true,
+        "description": "Tenant identifier for RBAC and storage segregation",
+        "schema": {
+          "type": "string",
+          "maxLength": 64
+        }
+      }
+    },
+    "responses": {
+      "ValidationError": {
+        "description": "Request validation failed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ValidationError"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Forbidden",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ForbiddenError"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Conflict (duplicate job)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ConflictError"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Internal server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/InternalError"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "AuditZipRequest": {
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "format"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "partner": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 140
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "zip"
+            ]
+          }
+        }
+      },
+      "AuditZipJob": {
+        "type": "object",
+        "required": [
+          "jobId",
+          "status"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "canceled"
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/AuditZipResult"
+          },
+          "error": {
+            "$ref": "#/components/schemas/InternalError"
+          }
+        }
+      },
+      "AuditZipResult": {
+        "type": "object",
+        "required": [
+          "signedUrl",
+          "size"
+        ],
+        "properties": {
+          "signedUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Signed URL valid for configured TTL (default 10 minutes)"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Size in bytes"
+          }
+        }
+      },
+      "ValidationError": {
+        "type": "object",
+        "required": [
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "path",
+                "message"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "example": "AUDIT-REQ-001"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ForbiddenError": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "FORBIDDEN"
+          },
+          "message": {
+            "type": "string",
+            "example": "Tenant or role missing"
+          }
+        }
+      },
+      "ConflictError": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "CONFLICT"
+          },
+          "message": {
+            "type": "string",
+            "example": "Duplicate request"
+          }
+        }
+      },
+      "NotFoundError": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "NOT_FOUND"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "InternalError": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "retryable"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "INTERNAL_ERROR"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}
