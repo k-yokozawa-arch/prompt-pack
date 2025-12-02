@@ -22,6 +22,12 @@ type Config struct {
 	EnableAuditHash  bool
 	ValidUnitCodes   []string
 	ValidTaxCategory []string
+	PDFChromiumPath  string
+	PDFTimeout       time.Duration
+	PDFTmpDir        string
+	PDFLocale        string
+	PDFTimeZone      string
+	PDFFontsDir      string
 }
 
 func LoadConfig() Config {
@@ -40,6 +46,12 @@ func LoadConfig() Config {
 		EnableAuditHash:  getBool("ENABLE_AUDIT_HASH", true),
 		ValidUnitCodes:   []string{"EA", "HUR", "MTR", "D64", "KGM", "LTR"},
 		ValidTaxCategory: []string{"S", "Z", "E", "O", "AE", "K", "G"},
+		PDFChromiumPath:  getenv("PDF_CHROMIUM_PATH", ""),
+		PDFTimeout:       getDuration("PDF_TIMEOUT", 15*time.Second),
+		PDFTmpDir:        getenv("PDF_TMP_DIR", "/tmp"),
+		PDFLocale:        getenv("PDF_LOCALE", "ja-JP"),
+		PDFTimeZone:      getenv("PDF_TIMEZONE", "Asia/Tokyo"),
+		PDFFontsDir:      getenv("PDF_FONTS_DIR", ""),
 	}
 }
 
