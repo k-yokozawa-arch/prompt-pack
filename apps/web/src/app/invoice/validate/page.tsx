@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { InvoiceDraft, ValidationErrorItem, ValidationResponse } from '../../../lib/api/jp-pint'
 
 const fontStyle = { fontFamily: '"IBM Plex Sans JP", "Inter", "Noto Sans JP", "Hiragino Sans", system-ui, sans-serif' }
+const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8080'
 
 const exampleDraft: InvoiceDraft = {
   issueDate: '2024-04-01',
@@ -28,7 +29,7 @@ export default function ValidatePage() {
     const corrId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now())
     try {
       const parsed = JSON.parse(jsonInput) as InvoiceDraft
-      const res = await fetch('/invoices/validate', {
+      const res = await fetch(`${apiBase}/invoices/validate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

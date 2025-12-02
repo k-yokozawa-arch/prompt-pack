@@ -14,3 +14,4 @@ coverage
 *.log
 .vscode
 .devcontainer/vscode-server/
+apps/api/tmp/
