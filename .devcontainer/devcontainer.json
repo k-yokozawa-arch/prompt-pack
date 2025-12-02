@@ -2,18 +2,32 @@
   "name": "prompt-pack",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
   "features": {
-    "ghcr.io/devcontainers/features/go:1": { "version": "1.22" },
+    "ghcr.io/devcontainers/features/go:1": { "version": "1.24" },
     "ghcr.io/devcontainers/features/git-lfs:1": {}
   },
-  "postCreateCommand": "bash -lc 'set -euo pipefail; npm i -g @redocly/openapi-cli openapi-diff; GOBIN=$(go env GOPATH)/bin GO111MODULE=on go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1; GOBIN=$(go env GOPATH)/bin go install github.com/air-verse/air@latest; echo \"export PATH=\\$PATH:$(go env GOPATH)/bin\" >> ~/.bashrc || true; echo \"export PATH=\\$PATH:$(go env GOPATH)/bin\" >> ~/.zshrc || true'",
+  "initializeCommand": "bash .devcontainer/sync-copilot-history-host.sh",
+  "postCreateCommand": "bash .devcontainer/postCreate.sh",
+  "postStartCommand": "bash .devcontainer/sync-to-host.sh || true",
+  "mounts": [
+    "source=${localWorkspaceFolder}/.devcontainer/vscode-server,target=/home/node/.vscode-server,type=bind",
+    "source=${localEnv:HOME}/.codex,target=/home/node/.codex,type=bind",
+    "source=${localEnv:HOME}/Library/Application Support/Code/User/workspaceStorage,target=/home/node/.host-workspaceStorage,type=bind"
+  ],
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-vscode.makefile-tools",
         "github.copilot",
         "esbenp.prettier-vscode",
-        "eamodio.gitlens"
-      ]
+        "eamodio.gitlens",
+        "openai.chatgpt"
+      ],
+      "settings": {
+        "remote.extensionKind": {
+          "github.copilot": ["ui"],
+          "github.copilot-chat": ["ui"]
+        }
+      }
     }
   },
   "remoteUser": "node"

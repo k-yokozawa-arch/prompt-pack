@@ -13,3 +13,4 @@ dist
 coverage
 *.log
 .vscode
+.devcontainer/vscode-server/
