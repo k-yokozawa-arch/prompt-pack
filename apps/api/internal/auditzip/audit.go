@@ -22,7 +22,7 @@ func HashChain(ctx context.Context, rec AuditRecorder, tenantID string, entry Au
 }
 
 func hashAudit(entry AuditLog) string {
-	payload := fmt.Sprintf("%s|%s|%s|%s|%s|%s", entry.CorrID, entry.TenantID, entry.Actor, entry.Action, entry.Ts.UTC().Format(time.RFC3339Nano), entry.PrevHash)
+	payload := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s", entry.CorrID, entry.TenantID, entry.Actor, entry.Action, entry.CriteriaHash, entry.Ts.UTC().Format(time.RFC3339Nano), entry.PrevHash)
 	sum := sha256.Sum256([]byte(payload))
 	return hex.EncodeToString(sum[:])
 }

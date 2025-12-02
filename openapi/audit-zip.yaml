@@ -1,12 +1,10 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: Audit ZIP Export API
-  version: 1.0.0
-  description: JP e-Document compliance audit ZIP export (contract-first).
-  contact:
-    name: X-Smart Neo Support
-    url: https://example.com/support
-    email: support@example.com
+  version: 1.1.0
+  description: >
+    JP e-Document compliance audit ZIP export (contract-first).
+    Async job with idempotency, cancellation, and signed download URL.
 servers:
   - url: https://api.example.com
     description: Production
@@ -20,6 +18,9 @@ paths:
     post:
       tags: [audit]
       summary: Enqueue audit ZIP export job
+      description: >
+        Issues an async job to build a tenant-scoped audit ZIP. Requires Idempotency-Key;
+        returns 202 with Location for polling. Duplicate keys with a different body return 409.
       operationId: enqueueAuditZip
       security:
         - bearerAuth: []
@@ -29,6 +30,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
         - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -41,6 +43,8 @@ paths:
                   from: '2025-01-01'
                   to: '2025-03-31'
                   partner: 'BRV-123'
+                  minAmount: 100000
+                  maxAmount: 500000
                   format: zip
       responses:
         '202':
@@ -51,12 +55,18 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestTooLarge'
+        '429':
+          $ref: '#/components/responses/RateLimit'
         '500':
           $ref: '#/components/responses/InternalError'
   /audit/jobs/{jobId}:
     get:
       tags: [audit]
       summary: Get audit ZIP job status
+      description: >
+        Returns job progress. When cancel=true and the job is running, the server requests cancellation.
       operationId: getAuditZipJob
       security:
         - bearerAuth: []
@@ -69,17 +79,22 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: cancel
+          in: query
+          required: false
+          description: Request cancellation when the job is in running state.
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           $ref: '#/components/responses/AuditJobStatus'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
-          description: Job not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotFoundError'
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalError'
 components:
@@ -93,9 +108,10 @@ components:
       name: X-Correlation-Id
       in: header
       required: true
-      description: Correlation ID for tracing and audit hash chain
+      description: Correlation ID for tracing and audit hash chain (echoed back)
       schema:
         type: string
+        format: uuid
         maxLength: 64
     TenantId:
       name: X-Tenant-Id
@@ -105,45 +121,115 @@ components:
       schema:
         type: string
         maxLength: 64
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >
+        Required idempotency key (UUID). Same key + same body returns the same job. Same key + different body returns 409 conflictReason=idempotency_body_mismatch.
+      schema:
+        type: string
+        format: uuid
   responses:
-    2xxSuccess:
-      description: Generic success placeholder (for lint rule; concrete 2xx responses are defined per operation)
-    ValidationError:
-      description: Request validation failed
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ValidationError'
     AuditJobAccepted:
-      description: Job accepted
+      description: Job accepted and queued
+      headers:
+        Location:
+          description: Polling URL for the job
+          schema:
+            type: string
+            format: uri
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationHeader'
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/AuditZipJob'
     AuditJobStatus:
       description: Job status
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationHeader'
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/AuditZipJob'
+    ValidationError:
+      description: Request validation failed
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
     Forbidden:
       description: Forbidden
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationHeader'
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ForbiddenError'
     Conflict:
-      description: Conflict (duplicate job)
+      description: Conflict (duplicate job, idempotency mismatch, or cancel not allowed)
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationHeader'
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ConflictError'
+    RequestTooLarge:
+      description: Query result exceeds size/record thresholds; split by the hint
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RequestTooLargeError'
+    RateLimit:
+      description: Too many requests
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationHeader'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RateLimitError'
     InternalError:
       description: Internal server error
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationHeader'
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/InternalError'
+    NotFound:
+      description: Job not found
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NotFoundError'
+  headers:
+    CorrelationHeader:
+      description: Correlation ID echoed by the server
+      schema:
+        type: string
+        format: uuid
+    RetryAfter:
+      description: >
+        Seconds or HTTP-date after which the request can be retried (per RFC 7231).
+      schema:
+        type: string
   schemas:
     AuditZipRequest:
       type: object
@@ -159,12 +245,20 @@ components:
           type: string
           nullable: true
           maxLength: 140
+        minAmount:
+          type: number
+          format: double
+          nullable: true
+        maxAmount:
+          type: number
+          format: double
+          nullable: true
         format:
           type: string
           enum: [zip]
     AuditZipJob:
       type: object
-      required: [jobId, status]
+      required: [jobId, status, progress, requestedAt, retryCount]
       properties:
         jobId:
           type: string
@@ -172,68 +266,147 @@ components:
         status:
           type: string
           enum: [queued, running, succeeded, failed, canceled]
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
         requestedAt:
           type: string
           format: date-time
-        completedAt:
+        startedAt:
           type: string
           format: date-time
           nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        retryCount:
+          type: integer
+          minimum: 0
+          maximum: 3
+        criteriaHash:
+          type: string
+          description: SHA-256 hex hash of the request criteria for audit chain
+        canCancel:
+          type: boolean
+          description: true when cancel=true is accepted
         result:
           $ref: '#/components/schemas/AuditZipResult'
         error:
           $ref: '#/components/schemas/InternalError'
     AuditZipResult:
       type: object
-      required: [signedUrl, size]
+      required: [signedUrl, size, expiresAt]
       properties:
         signedUrl:
           type: string
           format: uri
-          description: Signed URL valid for configured TTL (default 10 minutes)
+          description: Signed URL valid for configured TTL (default 10 minutes, read-only)
         size:
           type: integer
           minimum: 0
           description: Size in bytes
+        expiresAt:
+          type: string
+          format: date-time
+          description: Expiration timestamp of the signed URL
     ValidationError:
       type: object
-      required: [errors]
+      required: [code, message, corrId, retryable, errors]
       properties:
+        code:
+          type: string
+          example: AUDIT-REQ-001
+        message:
+          type: string
+        corrId:
+          type: string
+        retryable:
+          type: boolean
+          default: false
         errors:
           type: array
           items:
-            type: object
-            required: [code, path, message]
-            properties:
-              code:
-                type: string
-                example: AUDIT-REQ-001
-              path:
-                type: string
-              message:
-                type: string
+            $ref: '#/components/schemas/ValidationErrorItem'
+    ValidationErrorItem:
+      type: object
+      required: [code, path, message]
+      properties:
+        code:
+          type: string
+          example: AUDIT-REQ-001
+        path:
+          type: string
+        message:
+          type: string
     ForbiddenError:
       type: object
-      required: [code, message]
+      required: [code, message, corrId, retryable]
       properties:
         code: { type: string, example: FORBIDDEN }
         message: { type: string, example: Tenant or role missing }
+        corrId: { type: string }
+        retryable: { type: boolean, default: false }
     ConflictError:
       type: object
-      required: [code, message]
+      required: [code, message, corrId, retryable, conflictReason]
       properties:
         code: { type: string, example: CONFLICT }
         message: { type: string, example: Duplicate request }
+        corrId: { type: string }
+        retryable: { type: boolean, default: false }
+        conflictReason:
+          type: string
+          enum: [idempotency_replay, idempotency_body_mismatch, duplicate_job, not_cancelable]
+    RequestTooLargeError:
+      type: object
+      required: [code, message, corrId, retryable, splitHint]
+      properties:
+        code: { type: string, example: AUDIT-REQ-413 }
+        message: { type: string, example: Result exceeds threshold; split by hint }
+        corrId: { type: string }
+        retryable: { type: boolean, default: false }
+        splitHint:
+          $ref: '#/components/schemas/SplitHint'
+    SplitHint:
+      type: object
+      required: [chunks, approxSizeMB]
+      properties:
+        chunks:
+          type: integer
+          minimum: 2
+          description: Suggested number of chunks
+        approxSizeMB:
+          type: number
+          format: double
+          minimum: 1
+          description: Approximate size per chunk in MB
+    RateLimitError:
+      type: object
+      required: [code, message, corrId, retryable, retryAfterSeconds]
+      properties:
+        code: { type: string, example: RATE_LIMITED }
+        message: { type: string, example: Too many requests }
+        corrId: { type: string }
+        retryable: { type: boolean, default: true }
+        retryAfterSeconds:
+          type: integer
+          minimum: 1
+          description: Minimum seconds to wait before retry
     NotFoundError:
       type: object
-      required: [code, message]
+      required: [code, message, corrId, retryable]
       properties:
         code: { type: string, example: NOT_FOUND }
         message: { type: string }
+        corrId: { type: string }
+        retryable: { type: boolean, default: false }
     InternalError:
       type: object
-      required: [code, message, retryable]
+      required: [code, message, corrId, retryable]
       properties:
         code: { type: string, example: INTERNAL_ERROR }
         message: { type: string }
+        corrId: { type: string }
         retryable: { type: boolean }

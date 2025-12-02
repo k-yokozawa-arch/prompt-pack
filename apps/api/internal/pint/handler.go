@@ -18,6 +18,7 @@ type Service struct {
 	storage   Storage
 	audit     AuditRecorder
 	logger    *slog.Logger
+	pdf       PDFRenderer
 }
 
 func NewService(cfg Config, storage Storage, audit AuditRecorder, logger *slog.Logger) Service {
@@ -27,6 +28,7 @@ func NewService(cfg Config, storage Storage, audit AuditRecorder, logger *slog.L
 		storage:   storage,
 		audit:     audit,
 		logger:    logger,
+		pdf:       NewPDFRenderer(cfg),
 	}
 }
 
@@ -104,9 +106,15 @@ func (s Service) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 	var pdfURL string
 	if s.cfg.PDFEnabled {
 		pdfKey := fmt.Sprintf("%s/invoices/%s/invoice.pdf", tenantID, invoiceID)
-		// Placeholder PDF bytes to keep pipeline PWA-friendly.
-		_ = s.storage.PutObject(ctx, pdfKey, []byte("PDF generation deferred"), "application/pdf")
-		pdfURL, _ = s.storage.GetSignedURL(ctx, pdfKey, s.cfg.SignURLTTL)
+		if pdfBytes, pdfErr := s.pdf.Render(ctx, draft, validation.Totals); pdfErr == nil {
+			if err := s.storage.PutObject(ctx, pdfKey, pdfBytes, "application/pdf"); err != nil {
+				logger.Warn("store pdf failed", "error", err)
+			} else {
+				pdfURL, _ = s.storage.GetSignedURL(ctx, pdfKey, s.cfg.SignURLTTL)
+			}
+		} else {
+			logger.Warn("pdf render failed", "error", pdfErr)
+		}
 	}
 
 	if err := s.appendAudit(ctx, tenantID, corrID, "invoice.issue"); err != nil {
