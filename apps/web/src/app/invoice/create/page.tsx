@@ -1,53 +1,39 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useId } from 'react'
 import type { InvoiceDraft, LineItem } from '../../../lib/api/jp-pint'
 
 type QueueItem = { id: string; payload: InvoiceDraft; corrId: string; tenantId: string }
 
 const queueStorageKey = 'jp-pint-resend-queue'
+const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8080'
 
-const defaultDraft: InvoiceDraft = {
+const emptyDraft: InvoiceDraft = {
   currency: 'JPY',
-  issueDate: new Date().toISOString().slice(0, 10),
-  dueDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-  supplier: {
-    name: '',
-    taxId: '',
-    postal: '',
-    address: '',
-    countryCode: 'JP',
-  },
-  customer: {
-    name: '',
-    taxId: '',
-    postal: '',
-    address: '',
-    countryCode: 'JP',
-  },
-  lines: [
-    {
-      description: '',
-      quantity: 1,
-      unitCode: 'EA',
-      unitPrice: 0,
-      taxCategory: 'S',
-      taxRate: 0.1,
-    },
-  ],
+  issueDate: '',
+  dueDate: '',
+  supplier: { name: '', taxId: '', postal: '', address: '', countryCode: 'JP' },
+  customer: { name: '', taxId: '', postal: '', address: '', countryCode: 'JP' },
+  lines: [{ description: '', quantity: 1, unitCode: 'EA', unitPrice: 0, taxCategory: 'S', taxRate: 0.1 }],
 }
 
 const fontStyle = { fontFamily: '"IBM Plex Sans JP", "Inter", "Noto Sans JP", "Hiragino Sans", system-ui, sans-serif' }
 
 export default function CreateInvoicePage() {
-  const [draft, setDraft] = useState<InvoiceDraft>(defaultDraft)
+  const [draft, setDraft] = useState<InvoiceDraft>(() => emptyDraft)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [queued, setQueued] = useState<QueueItem[]>([])
 
   useEffect(() => {
-    const saved = localStorage.getItem(queueStorageKey)
+    const today = new Date()
+    const due = new Date(today.getTime() + 7 * 86400000)
+    setDraft((prev) => ({ ...prev, issueDate: toISO(today), dueDate: toISO(due) }))
+  }, [])
+
+  useEffect(() => {
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(queueStorageKey) : null
     if (saved) {
       setQueued(JSON.parse(saved))
     }
@@ -55,7 +41,9 @@ export default function CreateInvoicePage() {
 
   const saveQueue = useCallback((items: QueueItem[]) => {
     setQueued(items)
-    localStorage.setItem(queueStorageKey, JSON.stringify(items))
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(queueStorageKey, JSON.stringify(items))
+    }
   }, [])
 
   const enqueue = useCallback(
@@ -228,7 +216,7 @@ function LabeledInput(props: {
   step?: string
 }) {
   const { label, value, onChange, type = 'text', placeholder, readOnly, min, step } = props
-  const id = `${label}-${Math.random().toString(36).slice(2, 7)}`
+  const id = useId()
   return (
     <label htmlFor={id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <span style={{ color: '#cbd5e1', fontSize: '0.9rem' }}>{label}</span>
@@ -298,7 +286,7 @@ const pillBtnStyle: React.CSSProperties = {
 }
 
 async function postInvoice(body: InvoiceDraft, corrId: string, tenantId: string) {
-  return fetch('/invoices', {
+  return fetch(`${apiBase}/invoices`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -307,4 +295,8 @@ async function postInvoice(body: InvoiceDraft, corrId: string, tenantId: string)
     },
     body: JSON.stringify(body),
   })
+}
+
+function toISO(d: Date) {
+  return d.toISOString().slice(0, 10)
 }
