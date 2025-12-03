@@ -41,8 +41,19 @@ OAPI_CODEGEN  := go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
 OPENAPI_DIFF  := npx -y openapi-diff
 
 # Chromium パスを自動検出（PDF生成用）
-CHROMIUM_PATH := $(shell find /home/node/.cache/ms-playwright -name "chrome" -type f 2>/dev/null | head -1)
-
+CHROMIUM_PATH := $(shell \
+    find /home/node/.cache/ms-playwright -name "chrome" -type f 2>/dev/null | head -1; \
+    if [ -z "$$CHROMIUM_PATH" ]; then \
+        CHROMIUM_PATH=$$(find ~/.cache/ms-playwright -name "chrome" -type f 2>/dev/null | head -1); \
+    fi; \
+    if [ -z "$$CHROMIUM_PATH" ]; then \
+        CHROMIUM_PATH=$$(find /usr/bin -name "chromium" -type f 2>/dev/null | head -1); \
+    fi; \
+    echo $$CHROMIUM_PATH \
+)
+ifeq ($(CHROMIUM_PATH),)
+$(warning [Makefile] Chromium binary not found. Please install Playwright or set CHROMIUM_PATH manually.)
+endif
 gen: gen-ts gen-go
 
 gen-ts:
