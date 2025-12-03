@@ -21,10 +21,9 @@ errors = append(errors, errItem("JP-PINT-REQ-001", "supplier.name/customer.name"
 }
 
 // Validate dates - IssueDate and DueDate are openapi_types.Date
-issueDateStr := draft.IssueDate.String()
-dueDateStr := draft.DueDate.String()
-if issueDateStr == "0001-01-01" || dueDateStr == "0001-01-01" {
-errors = append(errors, errItem("JP-PINT-REQ-002", "issueDate/dueDate", "Issue and due dates are required"))
+// Validate zero dates using IsZero()
+if draft.IssueDate.Time.IsZero() || draft.DueDate.Time.IsZero() {
+    errors = append(errors, errItem("JP-PINT-REQ-002", "issueDate/dueDate", "Issue and due dates are required"))
 }
 
 issue := dateToTime(draft.IssueDate)
