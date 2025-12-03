@@ -40,6 +40,20 @@ PINT_TS_OUT   := $(WEB_OUT_TS)/jp-pint.types.ts
 OAPI_CODEGEN  := go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1
 OPENAPI_DIFF  := npx -y openapi-diff
 
+# Chromium パスを自動検出（PDF生成用）
+CHROMIUM_PATH := $(shell \
+    find /home/node/.cache/ms-playwright -name "chrome" -type f 2>/dev/null | head -1; \
+    if [ -z "$$CHROMIUM_PATH" ]; then \
+        CHROMIUM_PATH=$$(find ~/.cache/ms-playwright -name "chrome" -type f 2>/dev/null | head -1); \
+    fi; \
+    if [ -z "$$CHROMIUM_PATH" ]; then \
+        CHROMIUM_PATH=$$(find /usr/bin -name "chromium" -type f 2>/dev/null | head -1); \
+    fi; \
+    echo $$CHROMIUM_PATH \
+)
+ifeq ($(CHROMIUM_PATH),)
+$(warning [Makefile] Chromium binary not found. Please install Playwright or set CHROMIUM_PATH manually.)
+endif
 gen: gen-ts gen-go
 
 gen-ts:
@@ -69,7 +83,7 @@ web:
 	pnpm --filter web dev
 
 api:
-	cd apps/api && air
+	cd apps/api && PDF_CHROMIUM_PATH="$(CHROMIUM_PATH)" air
 
 dev:
 	$(MAKE) -j2 web api
@@ -123,7 +137,7 @@ tools:
 # 	pnpm --filter apps/web dev
 
 # api:
-# 	cd apps/api && air
+# 	cd apps/api && PDF_CHROMIUM_PATH="$(CHROMIUM_PATH)" air
 
 # dev:
 # 	$(MAKE) -j2 web api
