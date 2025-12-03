@@ -289,14 +289,20 @@ return r.RemoteAddr
 }
 
 func generateCorrID() string {
-b := make([]byte, 16)
-_, _ = rand.Read(b)
-return hex.EncodeToString(b)
+    b := make([]byte, 16)
+    if _, err := rand.Read(b); err != nil {
+        slog.Error("failed to generate correlation ID", "error", err)
+        return "fallback-corrid"
+    }
+    return hex.EncodeToString(b)
 }
 
 func generateID() string {
-b := make([]byte, 16)
-_, _ = rand.Read(b)
-h := sha256.Sum256(b)
-return hex.EncodeToString(h[:16])
+    b := make([]byte, 16)
+    if _, err := rand.Read(b); err != nil {
+        slog.Error("failed to generate ID", "error", err)
+        return "fallback-id"
+    }
+    h := sha256.Sum256(b)
+    return hex.EncodeToString(h[:16])
 }
