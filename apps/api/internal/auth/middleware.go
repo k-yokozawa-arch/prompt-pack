@@ -308,18 +308,29 @@ func generateCorrID() string {
 }
 
 // computeEntryHash computes the hash for an audit log entry using JSON serialization
-// to avoid delimiter collision issues.
+// to avoid delimiter collision issues. All fields except Hash and PrevHash are included
+// to ensure the integrity of the complete audit record.
 func computeEntryHash(entry *AuditLogEntry) (string, error) {
 hashData := struct {
 ID        string `json:"id"`
 TenantID  string `json:"tenantId"`
+CorrID    string `json:"corrId"`
 Action    string `json:"action"`
+KeyID     string `json:"keyId,omitempty"`
+IPAddress string `json:"ipAddress,omitempty"`
+UserAgent string `json:"userAgent,omitempty"`
+Details   string `json:"details,omitempty"`
 Timestamp string `json:"timestamp"`
 PrevHash  string `json:"prevHash"`
 }{
 ID:        entry.ID,
 TenantID:  entry.TenantID,
+CorrID:    entry.CorrID,
 Action:    entry.Action,
+KeyID:     entry.KeyID,
+IPAddress: entry.IPAddress,
+UserAgent: entry.UserAgent,
+Details:   entry.Details,
 Timestamp: entry.Timestamp.Format(time.RFC3339),
 PrevHash:  entry.PrevHash,
 }
