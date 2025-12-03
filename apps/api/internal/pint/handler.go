@@ -16,23 +16,23 @@ import (
 
 // Service wires config, validation, storage, and audit into HTTP handlers.
 type Service struct {
-	cfg       Config
-	validator Validator
-	storage   Storage
-	audit     AuditRecorder
-	logger    *slog.Logger
-	pdf       PDFRenderer
+cfg       Config
+validator Validator
+storage   Storage
+audit     AuditRecorder
+logger    *slog.Logger
+pdf       PDFRenderer
 }
 
 func NewService(cfg Config, storage Storage, audit AuditRecorder, logger *slog.Logger) Service {
-	return Service{
-		cfg:       cfg,
-		validator: Validator{Config: cfg},
-		storage:   storage,
-		audit:     audit,
-		logger:    logger,
-		pdf:       NewPDFRenderer(cfg),
-	}
+return Service{
+cfg:       cfg,
+validator: Validator{Config: cfg},
+storage:   storage,
+audit:     audit,
+logger:    logger,
+pdf:       NewPDFRenderer(cfg),
+}
 }
 
 // ValidateInvoice matches POST /invoices/validate
@@ -185,69 +185,69 @@ func (s Service) GetInvoice(w http.ResponseWriter, r *http.Request, id string) {
 }
 
 func decodeDraft(body io.ReadCloser) (InvoiceDraft, error) {
-	defer body.Close()
-	var draft InvoiceDraft
-	dec := json.NewDecoder(body)
-	if err := dec.Decode(&draft); err != nil {
-		return draft, fmt.Errorf("invalid JSON: %w", err)
-	}
-	return draft, nil
+defer body.Close()
+var draft InvoiceDraft
+dec := json.NewDecoder(body)
+if err := dec.Decode(&draft); err != nil {
+return draft, fmt.Errorf("invalid JSON: %w", err)
+}
+return draft, nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
-	writeJSONStatus(w, status, v)
+writeJSONStatus(w, status, v)
 }
 
 func writeJSONStatus(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+w.Header().Set("Content-Type", "application/json")
+w.WriteHeader(status)
+_ = json.NewEncoder(w).Encode(v)
 }
 
 func withRequestContext(r *http.Request) (context.Context, string, string, error) {
-	corr := r.Header.Get("X-Correlation-Id")
-	tenant := r.Header.Get("X-Tenant-Id")
-	if corr == "" || tenant == "" {
-		return r.Context(), corr, tenant, errors.New("missing X-Correlation-Id or X-Tenant-Id")
-	}
-	ctx := context.WithValue(r.Context(), "corrId", corr)
-	ctx = context.WithValue(ctx, "tenantId", tenant)
-	return ctx, corr, tenant, nil
+corr := r.Header.Get("X-Correlation-Id")
+tenant := r.Header.Get("X-Tenant-Id")
+if corr == "" || tenant == "" {
+return r.Context(), corr, tenant, errors.New("missing X-Correlation-Id or X-Tenant-Id")
+}
+ctx := context.WithValue(r.Context(), "corrId", corr)
+ctx = context.WithValue(ctx, "tenantId", tenant)
+return ctx, corr, tenant, nil
 }
 
 func (s Service) appendAudit(ctx context.Context, tenantID, corrID, action string) error {
-	if s.audit == nil {
-		return nil
-	}
-	entry := AuditLog{
-		AuditID:  newID(),
-		CorrID:   corrID,
-		TenantID: tenantID,
-		Actor:    "system",
-		Action:   action,
-		Ts:       time.Now().UTC(),
-	}
-	_, err := HashChain(ctx, s.audit, tenantID, entry)
-	return err
+if s.audit == nil {
+return nil
+}
+entry := AuditLog{
+AuditID:  newID(),
+CorrID:   corrID,
+TenantID: tenantID,
+Actor:    "system",
+Action:   action,
+Ts:       time.Now().UTC(),
+}
+_, err := HashChain(ctx, s.audit, tenantID, entry)
+return err
 }
 
 type MemoryAuditRecorder struct {
-	byTenant map[string][]AuditLog
+byTenant map[string][]AuditLog
 }
 
 func NewMemoryAuditRecorder() *MemoryAuditRecorder {
-	return &MemoryAuditRecorder{byTenant: map[string][]AuditLog{}}
+return &MemoryAuditRecorder{byTenant: map[string][]AuditLog{}}
 }
 
 func (m *MemoryAuditRecorder) Append(_ context.Context, entry AuditLog) error {
-	m.byTenant[entry.TenantID] = append(m.byTenant[entry.TenantID], entry)
-	return nil
+m.byTenant[entry.TenantID] = append(m.byTenant[entry.TenantID], entry)
+return nil
 }
 
 func (m *MemoryAuditRecorder) Last(_ context.Context, tenantID string) (AuditLog, error) {
-	list := m.byTenant[tenantID]
-	if len(list) == 0 {
-		return AuditLog{}, fmt.Errorf("empty")
-	}
-	return list[len(list)-1], nil
+list := m.byTenant[tenantID]
+if len(list) == 0 {
+return AuditLog{}, fmt.Errorf("empty")
+}
+return list[len(list)-1], nil
 }
