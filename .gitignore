@@ -13,5 +13,7 @@ dist
 coverage
 *.log
 .vscode
+# .gitignore に追加
+!.vscode/snippets/
 .devcontainer/vscode-server/
 apps/api/tmp/
