@@ -16,7 +16,8 @@ check_chromium() {
 
 if ! check_chromium; then
   echo "📦 Installing Chromium via Playwright..."
-  sudo npx playwright install --with-deps chromium
+  sudo npx playwright install-deps chromium
+  npx playwright install chromium
   
   # パスを取得して環境変数を設定
   PLAYWRIGHT_NODE_PATH=$(npm root -g)
