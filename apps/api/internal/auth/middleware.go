@@ -103,7 +103,13 @@ ActorType: "api_key",
 
 // Update last used (fire and forget)
 go func() {
-_ = store.UpdateLastUsed(context.Background(), apiKey.ID)
+    if err := store.UpdateLastUsed(context.Background(), apiKey.ID); err != nil {
+        if logger != nil {
+            logger.Error("Failed to update last used for API key", "keyID", apiKey.ID, "error", err)
+        } else {
+            slog.Error("Failed to update last used for API key", "keyID", apiKey.ID, "error", err)
+        }
+    }
 }()
 
 // Record success
