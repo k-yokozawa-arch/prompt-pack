@@ -238,21 +238,13 @@ entry.PrevHash = prev.Hash
 }
 
 // Compute hash using JSON serialization to avoid delimiter collision issues
-hashData := struct {
-ID        string `json:"id"`
-TenantID  string `json:"tenantId"`
-Action    string `json:"action"`
-Timestamp string `json:"timestamp"`
-PrevHash  string `json:"prevHash"`
-}{
-ID:        entry.ID,
-TenantID:  entry.TenantID,
-Action:    entry.Action,
-Timestamp: entry.Timestamp.Format(time.RFC3339),
-PrevHash:  entry.PrevHash,
+hash, err := computeEntryHash(&entry)
+if err != nil {
+// Log error but continue with empty hash rather than blocking audit
+slog.Error("failed to compute audit hash", "error", err, "entryID", entry.ID)
+hash = ""
 }
-dataBytes, _ := json.Marshal(hashData)
-entry.Hash = ComputeAuditHash(entry.PrevHash, string(dataBytes))
+entry.Hash = hash
 
 _ = audit.Record(ctx, entry)
 }
@@ -279,21 +271,13 @@ entry.PrevHash = prev.Hash
 }
 
 // Compute hash using JSON serialization to avoid delimiter collision issues
-hashData := struct {
-ID        string `json:"id"`
-TenantID  string `json:"tenantId"`
-Action    string `json:"action"`
-Timestamp string `json:"timestamp"`
-PrevHash  string `json:"prevHash"`
-}{
-ID:        entry.ID,
-TenantID:  entry.TenantID,
-Action:    entry.Action,
-Timestamp: entry.Timestamp.Format(time.RFC3339),
-PrevHash:  entry.PrevHash,
+hash, err := computeEntryHash(&entry)
+if err != nil {
+// Log error but continue with empty hash rather than blocking audit
+slog.Error("failed to compute audit hash", "error", err, "entryID", entry.ID)
+hash = ""
 }
-dataBytes, _ := json.Marshal(hashData)
-entry.Hash = ComputeAuditHash(entry.PrevHash, string(dataBytes))
+entry.Hash = hash
 
 _ = audit.Record(ctx, entry)
 }
@@ -321,6 +305,29 @@ func generateCorrID() string {
         return "fallback-corrid"
     }
     return hex.EncodeToString(b)
+}
+
+// computeEntryHash computes the hash for an audit log entry using JSON serialization
+// to avoid delimiter collision issues.
+func computeEntryHash(entry *AuditLogEntry) (string, error) {
+hashData := struct {
+ID        string `json:"id"`
+TenantID  string `json:"tenantId"`
+Action    string `json:"action"`
+Timestamp string `json:"timestamp"`
+PrevHash  string `json:"prevHash"`
+}{
+ID:        entry.ID,
+TenantID:  entry.TenantID,
+Action:    entry.Action,
+Timestamp: entry.Timestamp.Format(time.RFC3339),
+PrevHash:  entry.PrevHash,
+}
+dataBytes, err := json.Marshal(hashData)
+if err != nil {
+return "", fmt.Errorf("failed to marshal hash data: %w", err)
+}
+return ComputeAuditHash(entry.PrevHash, string(dataBytes)), nil
 }
 
 func generateID() string {
