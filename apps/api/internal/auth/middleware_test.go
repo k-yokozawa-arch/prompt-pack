@@ -44,7 +44,7 @@ func TestMiddleware_ExpiredKey(t *testing.T) {
 	middleware := Middleware(store, audit, cfg, nil)
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	}))
 
 	// Make request with expired key
@@ -115,7 +115,9 @@ func TestMiddleware_KeyExpirationCheck(t *testing.T) {
 	}
 
 	// Directly set expiration in the past (simulating a key that just expired)
-	// Access the key directly through the store's internal map
+	// Note: We access the store's internal map directly for testing purposes.
+	// This is necessary to test the middleware's expiration check logic
+	// independently of the store's validation filtering.
 	store.mu.Lock()
 	expiredAt := time.Now().Add(-1 * time.Minute)
 	store.keys[key.ID].ExpiresAt = &expiredAt
@@ -125,7 +127,7 @@ func TestMiddleware_KeyExpirationCheck(t *testing.T) {
 	middleware := Middleware(store, audit, cfg, nil)
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	}))
 
 	// Make request with expired key
@@ -196,7 +198,7 @@ func TestMiddleware_ExpiredKeyDuringRotationGracePeriod(t *testing.T) {
 	middleware := Middleware(store, audit, cfg, nil)
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	}))
 
 	// Make request with new key during grace period
@@ -263,7 +265,7 @@ func TestMiddleware_SuspendedTenant(t *testing.T) {
 	middleware := Middleware(store, audit, cfg, nil)
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	}))
 
 	// Make request with suspended tenant's key
@@ -342,7 +344,7 @@ func TestMiddleware_RevokedKey(t *testing.T) {
 	middleware := Middleware(store, audit, cfg, nil)
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	}))
 
 	// Make request with revoked key
@@ -394,7 +396,7 @@ func TestMiddleware_MissingAPIKey(t *testing.T) {
 	middleware := Middleware(store, audit, cfg, nil)
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	}))
 
 	// Make request without API key
@@ -445,7 +447,7 @@ func TestMiddleware_InvalidAPIKey(t *testing.T) {
 	middleware := Middleware(store, audit, cfg, nil)
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	}))
 
 	// Make request with invalid API key
@@ -539,7 +541,7 @@ func TestMiddleware_SuccessfulAuth(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	}))
 
 	// Make request with valid key
@@ -612,7 +614,7 @@ func TestRequireScope_Success(t *testing.T) {
 	scopeMiddleware := RequireScope("audit:read")
 	handler := authMiddleware(scopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	})))
 
 	// Make request
@@ -661,7 +663,7 @@ func TestRequireScope_InsufficientScope(t *testing.T) {
 	scopeMiddleware := RequireScope("audit:write")
 	handler := authMiddleware(scopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	})))
 
 	// Make request
@@ -723,7 +725,7 @@ func TestRequireScope_WildcardScope(t *testing.T) {
 	scopeMiddleware := RequireScope("audit:write")
 	handler := authMiddleware(scopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	})))
 
 	// Make request
@@ -744,7 +746,7 @@ func TestRequireScope_NoAuth(t *testing.T) {
 	scopeMiddleware := RequireScope("audit:read")
 	handler := scopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	}))
 
 	// Make request without authentication
@@ -862,7 +864,7 @@ func TestMiddleware_XAPIKeyHeader(t *testing.T) {
 	middleware := Middleware(store, audit, cfg, nil)
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	}))
 
 	// Make request with X-API-Key header
