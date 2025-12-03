@@ -20,6 +20,7 @@ const (
 
 // Defines values for AuditEntryAction.
 const (
+	InvoiceGet      AuditEntryAction = "invoice.get"
 	InvoiceIssue    AuditEntryAction = "invoice.issue"
 	InvoiceValidate AuditEntryAction = "invoice.validate"
 )
