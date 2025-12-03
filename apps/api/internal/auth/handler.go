@@ -99,10 +99,12 @@ writeJSONError(w, http.StatusForbidden, "INSUFFICIENT_SCOPE", "admin:write scope
 return
 }
 
+const maxAPIKeyRequestBodySize = 1 << 20 // 1MB
 var req CreateAPIKeyRequest
-if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-writeJSONError(w, http.StatusBadRequest, "BAD_JSON", "Invalid JSON body", corrID)
-return
+limitedBody := http.MaxBytesReader(w, r.Body, maxAPIKeyRequestBodySize)
+if err := json.NewDecoder(limitedBody).Decode(&req); err != nil {
+    writeJSONError(w, http.StatusBadRequest, "BAD_JSON", "Invalid JSON body", corrID)
+    return
 }
 
 // Validate request
