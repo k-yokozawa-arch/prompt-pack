@@ -7,7 +7,7 @@
   },
   "initializeCommand": "bash .devcontainer/sync-copilot-history-host.sh",
   "postCreateCommand": "bash .devcontainer/postCreate.sh",
-  "postStartCommand": "bash .devcontainer/sync-to-host.sh || true",
+  "postStartCommand": "bash .devcontainer/postStart.sh",
   "mounts": [
     "source=${localWorkspaceFolder}/.devcontainer/vscode-server,target=/home/node/.vscode-server,type=bind",
     "source=${localEnv:HOME}/.codex,target=/home/node/.codex,type=bind",
