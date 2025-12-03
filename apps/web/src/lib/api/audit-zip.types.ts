@@ -3,317 +3,346 @@
  * Do not make direct changes to the file.
  */
 
-
 export interface paths {
-  "/audit/zip": {
-    /**
-     * Enqueue audit ZIP export job
-     * @description Issues an async job to build a tenant-scoped audit ZIP. Requires Idempotency-Key; returns 202 with Location for polling. Duplicate keys with a different body return 409.
-     */
-    post: operations["enqueueAuditZip"];
-  };
-  "/audit/jobs/{jobId}": {
-    /**
-     * Get audit ZIP job status
-     * @description Returns job progress. When cancel=true and the job is running, the server requests cancellation.
-     */
-    get: operations["getAuditZipJob"];
-  };
+    "/audit/zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue audit ZIP export job
+         * @description Issues an async job to build a tenant-scoped audit ZIP. Requires Idempotency-Key; returns 202 with Location for polling. Duplicate keys with a different body return 409.
+         */
+        post: operations["enqueueAuditZip"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/audit/jobs/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get audit ZIP job status
+         * @description Returns job progress. When cancel=true and the job is running, the server requests cancellation.
+         */
+        get: operations["getAuditZipJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
-
 export type webhooks = Record<string, never>;
-
 export interface components {
-  schemas: {
-    AuditZipRequest: {
-      /** Format: date */
-      from: string;
-      /** Format: date */
-      to: string;
-      partner?: string | null;
-      /** Format: double */
-      minAmount?: number | null;
-      /** Format: double */
-      maxAmount?: number | null;
-      /** @enum {string} */
-      format: "zip";
+    schemas: {
+        AuditZipRequest: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            partner?: string | null;
+            /** Format: double */
+            minAmount?: number | null;
+            /** Format: double */
+            maxAmount?: number | null;
+            /** @enum {string} */
+            format: "zip";
+        };
+        AuditZipJob: {
+            /** Format: uuid */
+            jobId: string;
+            /** @enum {string} */
+            status: "queued" | "running" | "succeeded" | "failed" | "canceled";
+            progress: number;
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            startedAt?: string | null;
+            /** Format: date-time */
+            finishedAt?: string | null;
+            retryCount: number;
+            /** @description SHA-256 hex hash of the request criteria for audit chain */
+            criteriaHash?: string;
+            /** @description true when cancel=true is accepted */
+            canCancel?: boolean;
+            result?: components["schemas"]["AuditZipResult"];
+            error?: components["schemas"]["InternalError"];
+        };
+        AuditZipResult: {
+            /**
+             * Format: uri
+             * @description Signed URL valid for configured TTL (default 10 minutes, read-only)
+             */
+            signedUrl: string;
+            /** @description Size in bytes */
+            size: number;
+            /**
+             * Format: date-time
+             * @description Expiration timestamp of the signed URL
+             */
+            expiresAt: string;
+        };
+        ValidationError: {
+            /** @example AUDIT-REQ-001 */
+            code: string;
+            message: string;
+            corrId: string;
+            /** @default false */
+            retryable: boolean;
+            errors: components["schemas"]["ValidationErrorItem"][];
+        };
+        ValidationErrorItem: {
+            /** @example AUDIT-REQ-001 */
+            code: string;
+            path: string;
+            message: string;
+        };
+        ForbiddenError: {
+            /** @example FORBIDDEN */
+            code: string;
+            /** @example Tenant or role missing */
+            message: string;
+            corrId: string;
+            /** @default false */
+            retryable: boolean;
+        };
+        ConflictError: {
+            /** @example CONFLICT */
+            code: string;
+            /** @example Duplicate request */
+            message: string;
+            corrId: string;
+            /** @default false */
+            retryable: boolean;
+            /** @enum {string} */
+            conflictReason: "idempotency_replay" | "idempotency_body_mismatch" | "duplicate_job" | "not_cancelable";
+        };
+        RequestTooLargeError: {
+            /** @example AUDIT-REQ-413 */
+            code: string;
+            /** @example Result exceeds threshold; split by hint */
+            message: string;
+            corrId: string;
+            /** @default false */
+            retryable: boolean;
+            splitHint: components["schemas"]["SplitHint"];
+        };
+        SplitHint: {
+            /** @description Suggested number of chunks */
+            chunks: number;
+            /**
+             * Format: double
+             * @description Approximate size per chunk in MB
+             */
+            approxSizeMB: number;
+        };
+        RateLimitError: {
+            /** @example RATE_LIMITED */
+            code: string;
+            /** @example Too many requests */
+            message: string;
+            corrId: string;
+            /** @default true */
+            retryable: boolean;
+            /** @description Minimum seconds to wait before retry */
+            retryAfterSeconds: number;
+        };
+        NotFoundError: {
+            /** @example NOT_FOUND */
+            code: string;
+            message: string;
+            corrId: string;
+            /** @default false */
+            retryable: boolean;
+        };
+        InternalError: {
+            /** @example INTERNAL_ERROR */
+            code: string;
+            message: string;
+            corrId: string;
+            retryable: boolean;
+        };
     };
-    AuditZipJob: {
-      /** Format: uuid */
-      jobId: string;
-      /** @enum {string} */
-      status: "queued" | "running" | "succeeded" | "failed" | "canceled";
-      progress: number;
-      /** Format: date-time */
-      requestedAt: string;
-      /** Format: date-time */
-      startedAt?: string | null;
-      /** Format: date-time */
-      finishedAt?: string | null;
-      retryCount: number;
-      /** @description SHA-256 hex hash of the request criteria for audit chain */
-      criteriaHash?: string;
-      /** @description true when cancel=true is accepted */
-      canCancel?: boolean;
-      result?: components["schemas"]["AuditZipResult"];
-      error?: components["schemas"]["InternalError"];
+    responses: {
+        /** @description Job accepted and queued */
+        AuditJobAccepted: {
+            headers: {
+                /** @description Polling URL for the job */
+                Location?: string;
+                "X-Correlation-Id": components["headers"]["CorrelationHeader"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AuditZipJob"];
+            };
+        };
+        /** @description Job status */
+        AuditJobStatus: {
+            headers: {
+                "X-Correlation-Id": components["headers"]["CorrelationHeader"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AuditZipJob"];
+            };
+        };
+        /** @description Request validation failed */
+        ValidationError: {
+            headers: {
+                "X-Correlation-Id": components["headers"]["CorrelationHeader"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ValidationError"];
+            };
+        };
+        /** @description Forbidden */
+        Forbidden: {
+            headers: {
+                "X-Correlation-Id": components["headers"]["CorrelationHeader"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ForbiddenError"];
+            };
+        };
+        /** @description Conflict (duplicate job, idempotency mismatch, or cancel not allowed) */
+        Conflict: {
+            headers: {
+                "X-Correlation-Id": components["headers"]["CorrelationHeader"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ConflictError"];
+            };
+        };
+        /** @description Query result exceeds size/record thresholds; split by the hint */
+        RequestTooLarge: {
+            headers: {
+                "X-Correlation-Id": components["headers"]["CorrelationHeader"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["RequestTooLargeError"];
+            };
+        };
+        /** @description Too many requests */
+        RateLimit: {
+            headers: {
+                "X-Correlation-Id": components["headers"]["CorrelationHeader"];
+                "Retry-After": components["headers"]["RetryAfter"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["RateLimitError"];
+            };
+        };
+        /** @description Internal server error */
+        InternalError: {
+            headers: {
+                "X-Correlation-Id": components["headers"]["CorrelationHeader"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["InternalError"];
+            };
+        };
+        /** @description Job not found */
+        NotFound: {
+            headers: {
+                "X-Correlation-Id": components["headers"]["CorrelationHeader"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["NotFoundError"];
+            };
+        };
     };
-    AuditZipResult: {
-      /**
-       * Format: uri
-       * @description Signed URL valid for configured TTL (default 10 minutes, read-only)
-       */
-      signedUrl: string;
-      /** @description Size in bytes */
-      size: number;
-      /**
-       * Format: date-time
-       * @description Expiration timestamp of the signed URL
-       */
-      expiresAt: string;
+    parameters: {
+        /** @description Correlation ID for tracing and audit hash chain (echoed back) */
+        CorrelationId: string;
+        /** @description Tenant identifier for RBAC and storage segregation */
+        TenantId: string;
+        /** @description Required idempotency key (UUID). Same key + same body returns the same job. Same key + different body returns 409 conflictReason=idempotency_body_mismatch. */
+        IdempotencyKey: string;
     };
-    ValidationError: {
-      /** @example AUDIT-REQ-001 */
-      code: string;
-      message: string;
-      corrId: string;
-      /** @default false */
-      retryable: boolean;
-      errors: components["schemas"]["ValidationErrorItem"][];
+    requestBodies: never;
+    headers: {
+        /** @description Correlation ID echoed by the server */
+        CorrelationHeader: string;
+        /** @description Seconds or HTTP-date after which the request can be retried (per RFC 7231). */
+        RetryAfter: string;
     };
-    ValidationErrorItem: {
-      /** @example AUDIT-REQ-001 */
-      code: string;
-      path: string;
-      message: string;
-    };
-    ForbiddenError: {
-      /** @example FORBIDDEN */
-      code: string;
-      /** @example Tenant or role missing */
-      message: string;
-      corrId: string;
-      /** @default false */
-      retryable: boolean;
-    };
-    ConflictError: {
-      /** @example CONFLICT */
-      code: string;
-      /** @example Duplicate request */
-      message: string;
-      corrId: string;
-      /** @default false */
-      retryable: boolean;
-      /** @enum {string} */
-      conflictReason: "idempotency_replay" | "idempotency_body_mismatch" | "duplicate_job" | "not_cancelable";
-    };
-    RequestTooLargeError: {
-      /** @example AUDIT-REQ-413 */
-      code: string;
-      /** @example Result exceeds threshold; split by hint */
-      message: string;
-      corrId: string;
-      /** @default false */
-      retryable: boolean;
-      splitHint: components["schemas"]["SplitHint"];
-    };
-    SplitHint: {
-      /** @description Suggested number of chunks */
-      chunks: number;
-      /**
-       * Format: double
-       * @description Approximate size per chunk in MB
-       */
-      approxSizeMB: number;
-    };
-    RateLimitError: {
-      /** @example RATE_LIMITED */
-      code: string;
-      /** @example Too many requests */
-      message: string;
-      corrId: string;
-      /** @default true */
-      retryable: boolean;
-      /** @description Minimum seconds to wait before retry */
-      retryAfterSeconds: number;
-    };
-    NotFoundError: {
-      /** @example NOT_FOUND */
-      code: string;
-      message: string;
-      corrId: string;
-      /** @default false */
-      retryable: boolean;
-    };
-    InternalError: {
-      /** @example INTERNAL_ERROR */
-      code: string;
-      message: string;
-      corrId: string;
-      retryable: boolean;
-    };
-  };
-  responses: {
-    /** @description Job accepted and queued */
-    AuditJobAccepted: {
-      headers: {
-        /** @description Polling URL for the job */
-        Location?: string;
-        "X-Correlation-Id": components["headers"]["CorrelationHeader"];
-      };
-      content: {
-        "application/json": components["schemas"]["AuditZipJob"];
-      };
-    };
-    /** @description Job status */
-    AuditJobStatus: {
-      headers: {
-        "X-Correlation-Id": components["headers"]["CorrelationHeader"];
-      };
-      content: {
-        "application/json": components["schemas"]["AuditZipJob"];
-      };
-    };
-    /** @description Request validation failed */
-    ValidationError: {
-      headers: {
-        "X-Correlation-Id": components["headers"]["CorrelationHeader"];
-      };
-      content: {
-        "application/json": components["schemas"]["ValidationError"];
-      };
-    };
-    /** @description Forbidden */
-    Forbidden: {
-      headers: {
-        "X-Correlation-Id": components["headers"]["CorrelationHeader"];
-      };
-      content: {
-        "application/json": components["schemas"]["ForbiddenError"];
-      };
-    };
-    /** @description Conflict (duplicate job, idempotency mismatch, or cancel not allowed) */
-    Conflict: {
-      headers: {
-        "X-Correlation-Id": components["headers"]["CorrelationHeader"];
-      };
-      content: {
-        "application/json": components["schemas"]["ConflictError"];
-      };
-    };
-    /** @description Query result exceeds size/record thresholds; split by the hint */
-    RequestTooLarge: {
-      headers: {
-        "X-Correlation-Id": components["headers"]["CorrelationHeader"];
-      };
-      content: {
-        "application/json": components["schemas"]["RequestTooLargeError"];
-      };
-    };
-    /** @description Too many requests */
-    RateLimit: {
-      headers: {
-        "X-Correlation-Id": components["headers"]["CorrelationHeader"];
-        "Retry-After": components["headers"]["RetryAfter"];
-      };
-      content: {
-        "application/json": components["schemas"]["RateLimitError"];
-      };
-    };
-    /** @description Internal server error */
-    InternalError: {
-      headers: {
-        "X-Correlation-Id": components["headers"]["CorrelationHeader"];
-      };
-      content: {
-        "application/json": components["schemas"]["InternalError"];
-      };
-    };
-    /** @description Job not found */
-    NotFound: {
-      headers: {
-        "X-Correlation-Id": components["headers"]["CorrelationHeader"];
-      };
-      content: {
-        "application/json": components["schemas"]["NotFoundError"];
-      };
-    };
-  };
-  parameters: {
-    /** @description Correlation ID for tracing and audit hash chain (echoed back) */
-    CorrelationId: string;
-    /** @description Tenant identifier for RBAC and storage segregation */
-    TenantId: string;
-    /** @description Required idempotency key (UUID). Same key + same body returns the same job. Same key + different body returns 409 conflictReason=idempotency_body_mismatch. */
-    IdempotencyKey: string;
-  };
-  requestBodies: never;
-  headers: {
-    /** @description Correlation ID echoed by the server */
-    CorrelationHeader: string;
-    /** @description Seconds or HTTP-date after which the request can be retried (per RFC 7231). */
-    RetryAfter: string;
-  };
-  pathItems: never;
+    pathItems: never;
 }
-
 export type $defs = Record<string, never>;
-
-export type external = Record<string, never>;
-
 export interface operations {
-
-  /**
-   * Enqueue audit ZIP export job
-   * @description Issues an async job to build a tenant-scoped audit ZIP. Requires Idempotency-Key; returns 202 with Location for polling. Duplicate keys with a different body return 409.
-   */
-  enqueueAuditZip: {
-    parameters: {
-      header: {
-        "X-Correlation-Id": components["parameters"]["CorrelationId"];
-        "X-Tenant-Id": components["parameters"]["TenantId"];
-        "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-      };
+    enqueueAuditZip: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Correlation ID for tracing and audit hash chain (echoed back) */
+                "X-Correlation-Id": components["parameters"]["CorrelationId"];
+                /** @description Tenant identifier for RBAC and storage segregation */
+                "X-Tenant-Id": components["parameters"]["TenantId"];
+                /** @description Required idempotency key (UUID). Same key + same body returns the same job. Same key + different body returns 409 conflictReason=idempotency_body_mismatch. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuditZipRequest"];
+            };
+        };
+        responses: {
+            202: components["responses"]["AuditJobAccepted"];
+            400: components["responses"]["ValidationError"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["RequestTooLarge"];
+            429: components["responses"]["RateLimit"];
+            500: components["responses"]["InternalError"];
+        };
     };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["AuditZipRequest"];
-      };
+    getAuditZipJob: {
+        parameters: {
+            query?: {
+                /** @description Request cancellation when the job is in running state. */
+                cancel?: boolean;
+            };
+            header: {
+                /** @description Correlation ID for tracing and audit hash chain (echoed back) */
+                "X-Correlation-Id": components["parameters"]["CorrelationId"];
+                /** @description Tenant identifier for RBAC and storage segregation */
+                "X-Tenant-Id": components["parameters"]["TenantId"];
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["AuditJobStatus"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
     };
-    responses: {
-      202: components["responses"]["AuditJobAccepted"];
-      400: components["responses"]["ValidationError"];
-      403: components["responses"]["Forbidden"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["RequestTooLarge"];
-      429: components["responses"]["RateLimit"];
-      500: components["responses"]["InternalError"];
-    };
-  };
-  /**
-   * Get audit ZIP job status
-   * @description Returns job progress. When cancel=true and the job is running, the server requests cancellation.
-   */
-  getAuditZipJob: {
-    parameters: {
-      query?: {
-        /** @description Request cancellation when the job is in running state. */
-        cancel?: boolean;
-      };
-      header: {
-        "X-Correlation-Id": components["parameters"]["CorrelationId"];
-        "X-Tenant-Id": components["parameters"]["TenantId"];
-      };
-      path: {
-        jobId: string;
-      };
-    };
-    responses: {
-      200: components["responses"]["AuditJobStatus"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      409: components["responses"]["Conflict"];
-      500: components["responses"]["InternalError"];
-    };
-  };
 }
