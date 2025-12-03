@@ -108,8 +108,12 @@ return err == nil
 func hashArgon2(data string, cfg Config) (string, error) {
 // Generate salt
 salt := make([]byte, 16)
-if _, err := rand.Read(salt); err != nil {
-return "", fmt.Errorf("failed to generate salt: %w", err)
+n, err := rand.Read(salt)
+if err != nil {
+    return "", fmt.Errorf("failed to generate salt: %w", err)
+}
+if n != len(salt) {
+    return "", fmt.Errorf("failed to generate salt: only read %d bytes", n)
 }
 
 hash := argon2.IDKey(
