@@ -129,7 +129,7 @@ expiresAt = &t
 
 key, rawKey, err := h.store.CreateKey(r.Context(), actor.TenantID, req.Name, req.Scopes, expiresAt)
 if err != nil {
-h.logger.Error("failed to create API key", slog.String("error", err.Error()))
+h.logger.Error("failed to create API key", slog.String("correlationId", corrID), slog.String("tenantId", actor.TenantID))
 writeJSONError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create API key", corrID)
 return
 }
