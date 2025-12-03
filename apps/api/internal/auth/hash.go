@@ -33,8 +33,12 @@ const KeyPrefix = "ppk_" // prompt-pack key
 func GenerateAPIKey() (rawKey, prefix string, err error) {
 // Generate 32 bytes of random data
 keyBytes := make([]byte, 32)
-if _, err := rand.Read(keyBytes); err != nil {
+n, err := rand.Read(keyBytes)
+if err != nil {
 return "", "", fmt.Errorf("failed to generate random key: %w", err)
+}
+if n != len(keyBytes) {
+return "", "", fmt.Errorf("failed to generate random key: only read %d bytes", n)
 }
 
 // Encode as base64url (URL-safe, no padding)
