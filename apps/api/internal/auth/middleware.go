@@ -237,9 +237,22 @@ entry.PrevHash = prev.Hash
 }
 }
 
-// Compute hash
-data := fmt.Sprintf("%s|%s|%s|%s|%s", entry.ID, entry.TenantID, entry.Action, entry.Timestamp.Format(time.RFC3339), entry.PrevHash)
-entry.Hash = ComputeAuditHash(entry.PrevHash, data)
+// Compute hash using JSON serialization to avoid delimiter collision issues
+hashData := struct {
+ID        string `json:"id"`
+TenantID  string `json:"tenantId"`
+Action    string `json:"action"`
+Timestamp string `json:"timestamp"`
+PrevHash  string `json:"prevHash"`
+}{
+ID:        entry.ID,
+TenantID:  entry.TenantID,
+Action:    entry.Action,
+Timestamp: entry.Timestamp.Format(time.RFC3339),
+PrevHash:  entry.PrevHash,
+}
+dataBytes, _ := json.Marshal(hashData)
+entry.Hash = ComputeAuditHash(entry.PrevHash, string(dataBytes))
 
 _ = audit.Record(ctx, entry)
 }
@@ -265,9 +278,22 @@ if prev, err := audit.Last(ctx, tenantID); err == nil {
 entry.PrevHash = prev.Hash
 }
 
-// Compute hash
-data := fmt.Sprintf("%s|%s|%s|%s|%s", entry.ID, entry.TenantID, entry.Action, entry.Timestamp.Format(time.RFC3339), entry.PrevHash)
-entry.Hash = ComputeAuditHash(entry.PrevHash, data)
+// Compute hash using JSON serialization to avoid delimiter collision issues
+hashData := struct {
+ID        string `json:"id"`
+TenantID  string `json:"tenantId"`
+Action    string `json:"action"`
+Timestamp string `json:"timestamp"`
+PrevHash  string `json:"prevHash"`
+}{
+ID:        entry.ID,
+TenantID:  entry.TenantID,
+Action:    entry.Action,
+Timestamp: entry.Timestamp.Format(time.RFC3339),
+PrevHash:  entry.PrevHash,
+}
+dataBytes, _ := json.Marshal(hashData)
+entry.Hash = ComputeAuditHash(entry.PrevHash, string(dataBytes))
 
 _ = audit.Record(ctx, entry)
 }
