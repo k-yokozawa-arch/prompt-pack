@@ -20,7 +20,7 @@ if ! check_chromium; then
   npx playwright install chromium
   
   # パスを取得して環境変数を設定
-  PLAYWRIGHT_NODE_PATH=$(npm root -g)
+  PLAYWRIGHT_NODE_PATH=$(npm root)
   PLAYWRIGHT_CHROMIUM_PATH=$(NODE_PATH="$PLAYWRIGHT_NODE_PATH" node -p "require('playwright').chromium.executablePath()" 2>/dev/null || echo "")
   
   if [ -n "$PLAYWRIGHT_CHROMIUM_PATH" ]; then
