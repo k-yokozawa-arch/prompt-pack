@@ -9,7 +9,9 @@ require (
 	github.com/chromedp/chromedp v0.14.2
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/google/uuid v1.5.0
+	github.com/joho/godotenv v1.5.1
 	github.com/oapi-codegen/runtime v1.1.2
+	golang.org/x/crypto v0.45.0
 )
 
 require (
@@ -19,7 +21,5 @@ require (
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.4.0 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
-	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 )

@@ -3,288 +3,361 @@
  * Do not make direct changes to the file.
  */
 
-
 export interface paths {
-  "/invoices/validate": {
-    /** Validate invoice draft against JP PINT */
-    post: operations["validateInvoice"];
-  };
-  "/invoices": {
-    /** Issue invoice and persist XML/PDF */
-    post: operations["issueInvoice"];
-  };
-  "/invoices/{id}": {
-    /** Get invoice metadata and signed URLs */
-    get: operations["getInvoice"];
-  };
+    "/invoices/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate invoice draft against JP PINT */
+        post: operations["validateInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue invoice and persist XML/PDF */
+        post: operations["issueInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get invoice metadata and signed URLs */
+        get: operations["getInvoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
-
 export type webhooks = Record<string, never>;
-
 export interface components {
-  schemas: {
-    Party: {
-      name: string;
-      /** @description Japan TIN with leading T */
-      taxId: string;
-      postal: string;
-      address: string;
-      /** @enum {string} */
-      countryCode: "JP";
+    schemas: {
+        Party: {
+            name: string;
+            /** @description Japan TIN with leading T */
+            taxId: string;
+            postal: string;
+            address: string;
+            /** @enum {string} */
+            countryCode: "JP";
+        };
+        LineItem: {
+            description: string;
+            /** Format: double */
+            quantity: number;
+            /**
+             * @description UNECE unit code
+             * @enum {string}
+             */
+            unitCode: "EA" | "HUR" | "MTR" | "D64" | "KGM" | "LTR";
+            /** Format: double */
+            unitPrice: number;
+            /**
+             * @description JP PINT tax category code
+             * @enum {string}
+             */
+            taxCategory: "S" | "Z" | "E" | "O" | "AE" | "K" | "G";
+            /** Format: double */
+            taxRate: number;
+        };
+        InvoiceDraft: {
+            invoiceNumber?: string;
+            supplier: components["schemas"]["Party"];
+            customer: components["schemas"]["Party"];
+            /** Format: date */
+            issueDate: string;
+            /** Format: date */
+            dueDate: string;
+            /** @enum {string} */
+            currency: "JPY";
+            notes?: string;
+            lines: components["schemas"]["LineItem"][];
+        };
+        ValidationErrorItem: {
+            code: string;
+            path: string;
+            message: string;
+            ruleId: string;
+            /** @enum {string} */
+            severity?: "error" | "warning";
+        };
+        ValidationResponse: {
+            valid: boolean;
+            errors: components["schemas"]["ValidationErrorItem"][];
+            totals?: {
+                /** Format: double */
+                subtotal?: number;
+                /** Format: double */
+                tax?: number;
+                /** Format: double */
+                grandTotal?: number;
+            };
+        };
+        InvoiceIssued: {
+            /** Format: uuid */
+            invoiceId: string;
+            /** @enum {string} */
+            status: "draft" | "issued" | "failed";
+            /**
+             * Format: uri
+             * @description Signed URL valid for configured TTL
+             */
+            xmlUrl: string;
+            /** Format: uri */
+            pdfUrl?: string;
+            /** Format: date-time */
+            expiresAt?: string;
+        };
+        InvoiceRecord: {
+            /** Format: uuid */
+            invoiceId: string;
+            /** @enum {string} */
+            status: "draft" | "issued" | "failed";
+            /** Format: uri */
+            xmlUrl: string;
+            /** Format: uri */
+            pdfUrl?: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            audit?: components["schemas"]["AuditEntry"];
+        };
+        AuditEntry: {
+            /** Format: uuid */
+            auditId: string;
+            corrId: string;
+            tenantId: string;
+            actor: string;
+            /** @enum {string} */
+            action: "invoice.issue" | "invoice.validate" | "invoice.get";
+            /** Format: date-time */
+            timestamp: string;
+            hash: string;
+            prevHash: string;
+        };
+        ValidationErrorResponse: {
+            errors: components["schemas"]["ValidationErrorItem"][];
+        };
+        ForbiddenError: {
+            /** @example FORBIDDEN */
+            code: string;
+            /** @example Tenant or role missing */
+            message: string;
+        };
+        ConflictError: {
+            /** @example CONFLICT */
+            code: string;
+            /** @example Duplicate invoice number */
+            message: string;
+        };
+        NotFoundError: {
+            /** @example NOT_FOUND */
+            code: string;
+            message: string;
+        };
+        InternalError: {
+            /** @example INTERNAL_ERROR */
+            code: string;
+            message: string;
+            retryable: boolean;
+        };
     };
-    LineItem: {
-      description: string;
-      /** Format: double */
-      quantity: number;
-      /**
-       * @description UNECE unit code
-       * @enum {string}
-       */
-      unitCode: "EA" | "HUR" | "MTR" | "D64" | "KGM" | "LTR";
-      /** Format: double */
-      unitPrice: number;
-      /**
-       * @description JP PINT tax category code
-       * @enum {string}
-       */
-      taxCategory: "S" | "Z" | "E" | "O" | "AE" | "K" | "G";
-      /** Format: double */
-      taxRate: number;
+    responses: {
+        /** @description Generic success placeholder (for lint rule; concrete 2xx responses are defined per operation) */
+        "2xxSuccess": {
+            headers: {
+                [name: string]: unknown;
+            };
+            content?: never;
+        };
+        /** @description Forbidden */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ForbiddenError"];
+            };
+        };
+        /** @description Validation completed */
+        ValidationCompleted: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ValidationResponse"];
+            };
+        };
+        /** @description Invoice issued */
+        InvoiceIssuedResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["InvoiceIssued"];
+            };
+        };
+        /** @description Invoice metadata */
+        InvoiceRecordResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["InvoiceRecord"];
+            };
+        };
+        /** @description Internal server error */
+        InternalError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["InternalError"];
+            };
+        };
     };
-    InvoiceDraft: {
-      invoiceNumber?: string;
-      supplier: components["schemas"]["Party"];
-      customer: components["schemas"]["Party"];
-      /** Format: date */
-      issueDate: string;
-      /** Format: date */
-      dueDate: string;
-      /** @enum {string} */
-      currency: "JPY";
-      notes?: string;
-      lines: components["schemas"]["LineItem"][];
+    parameters: {
+        /** @description Correlation ID for tracing and audit hash chain */
+        CorrelationId: string;
+        /** @description Tenant identifier for RBAC and storage segregation */
+        TenantId: string;
     };
-    ValidationErrorItem: {
-      code: string;
-      path: string;
-      message: string;
-      ruleId: string;
-      /** @enum {string} */
-      severity?: "error" | "warning";
-    };
-    ValidationResponse: {
-      valid: boolean;
-      errors: components["schemas"]["ValidationErrorItem"][];
-      totals?: {
-        /** Format: double */
-        subtotal?: number;
-        /** Format: double */
-        tax?: number;
-        /** Format: double */
-        grandTotal?: number;
-      };
-    };
-    InvoiceIssued: {
-      /** Format: uuid */
-      invoiceId: string;
-      /** @enum {string} */
-      status: "draft" | "issued" | "failed";
-      /**
-       * Format: uri
-       * @description Signed URL valid for configured TTL
-       */
-      xmlUrl: string;
-      /** Format: uri */
-      pdfUrl?: string;
-      /** Format: date-time */
-      expiresAt?: string;
-    };
-    InvoiceRecord: {
-      /** Format: uuid */
-      invoiceId: string;
-      /** @enum {string} */
-      status: "draft" | "issued" | "failed";
-      /** Format: uri */
-      xmlUrl: string;
-      /** Format: uri */
-      pdfUrl?: string;
-      /** Format: date-time */
-      createdAt: string;
-      /** Format: date-time */
-      updatedAt: string;
-      audit?: components["schemas"]["AuditEntry"];
-    };
-    AuditEntry: {
-      /** Format: uuid */
-      auditId: string;
-      corrId: string;
-      tenantId: string;
-      actor: string;
-      /** @enum {string} */
-      action: "invoice.issue" | "invoice.validate";
-      /** Format: date-time */
-      timestamp: string;
-      hash: string;
-      prevHash: string;
-    };
-    ValidationErrorResponse: {
-      errors: components["schemas"]["ValidationErrorItem"][];
-    };
-    ForbiddenError: {
-      /** @example FORBIDDEN */
-      code: string;
-      /** @example Tenant or role missing */
-      message: string;
-    };
-    ConflictError: {
-      /** @example CONFLICT */
-      code: string;
-      /** @example Duplicate invoice number */
-      message: string;
-    };
-    NotFoundError: {
-      /** @example NOT_FOUND */
-      code: string;
-      message: string;
-    };
-    InternalError: {
-      /** @example INTERNAL_ERROR */
-      code: string;
-      message: string;
-      retryable: boolean;
-    };
-  };
-  responses: {
-    /** @description Generic success placeholder (for lint rule; concrete 2xx responses are defined per operation) */
-    "2xxSuccess": {
-      content: never;
-    };
-    /** @description Forbidden */
-    Forbidden: {
-      content: {
-        "application/json": components["schemas"]["ForbiddenError"];
-      };
-    };
-    /** @description Validation completed */
-    ValidationCompleted: {
-      content: {
-        "application/json": components["schemas"]["ValidationResponse"];
-      };
-    };
-    /** @description Invoice issued */
-    InvoiceIssuedResponse: {
-      content: {
-        "application/json": components["schemas"]["InvoiceIssued"];
-      };
-    };
-    /** @description Invoice metadata */
-    InvoiceRecordResponse: {
-      content: {
-        "application/json": components["schemas"]["InvoiceRecord"];
-      };
-    };
-    /** @description Internal server error */
-    InternalError: {
-      content: {
-        "application/json": components["schemas"]["InternalError"];
-      };
-    };
-  };
-  parameters: {
-    /** @description Correlation ID for tracing and audit hash chain */
-    CorrelationId: string;
-    /** @description Tenant identifier for RBAC and storage segregation */
-    TenantId: string;
-  };
-  requestBodies: never;
-  headers: never;
-  pathItems: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
-
 export type $defs = Record<string, never>;
-
-export type external = Record<string, never>;
-
 export interface operations {
-
-  /** Validate invoice draft against JP PINT */
-  validateInvoice: {
-    parameters: {
-      header: {
-        "X-Correlation-Id": components["parameters"]["CorrelationId"];
-        "X-Tenant-Id": components["parameters"]["TenantId"];
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["InvoiceDraft"];
-      };
-    };
-    responses: {
-      200: components["responses"]["ValidationCompleted"];
-      /** @description Validation error (schema) */
-      400: {
-        content: {
-          "application/json": components["schemas"]["ValidationErrorResponse"];
+    validateInvoice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Correlation ID for tracing and audit hash chain */
+                "X-Correlation-Id": components["parameters"]["CorrelationId"];
+                /** @description Tenant identifier for RBAC and storage segregation */
+                "X-Tenant-Id": components["parameters"]["TenantId"];
+            };
+            path?: never;
+            cookie?: never;
         };
-      };
-      403: components["responses"]["Forbidden"];
-      500: components["responses"]["InternalError"];
-    };
-  };
-  /** Issue invoice and persist XML/PDF */
-  issueInvoice: {
-    parameters: {
-      header: {
-        "X-Correlation-Id": components["parameters"]["CorrelationId"];
-        "X-Tenant-Id": components["parameters"]["TenantId"];
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["InvoiceDraft"];
-      };
-    };
-    responses: {
-      201: components["responses"]["InvoiceIssuedResponse"];
-      /** @description Business validation failed */
-      400: {
-        content: {
-          "application/json": components["schemas"]["ValidationErrorResponse"];
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceDraft"];
+            };
         };
-      };
-      403: components["responses"]["Forbidden"];
-      /** @description Duplicate invoice number or conflict */
-      409: {
-        content: {
-          "application/json": components["schemas"]["ConflictError"];
+        responses: {
+            200: components["responses"]["ValidationCompleted"];
+            /** @description Validation error (schema) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalError"];
         };
-      };
-      500: components["responses"]["InternalError"];
     };
-  };
-  /** Get invoice metadata and signed URLs */
-  getInvoice: {
-    parameters: {
-      header: {
-        "X-Correlation-Id": components["parameters"]["CorrelationId"];
-        "X-Tenant-Id": components["parameters"]["TenantId"];
-      };
-      path: {
-        /** @description Invoice identifier (UUID) */
-        id: string;
-      };
-    };
-    responses: {
-      200: components["responses"]["InvoiceRecordResponse"];
-      403: components["responses"]["Forbidden"];
-      /** @description Not found */
-      404: {
-        content: {
-          "application/json": components["schemas"]["NotFoundError"];
+    issueInvoice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Correlation ID for tracing and audit hash chain */
+                "X-Correlation-Id": components["parameters"]["CorrelationId"];
+                /** @description Tenant identifier for RBAC and storage segregation */
+                "X-Tenant-Id": components["parameters"]["TenantId"];
+            };
+            path?: never;
+            cookie?: never;
         };
-      };
-      500: components["responses"]["InternalError"];
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceDraft"];
+            };
+        };
+        responses: {
+            201: components["responses"]["InvoiceIssuedResponse"];
+            /** @description Business validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description Duplicate invoice number or conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictError"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
     };
-  };
+    getInvoice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Correlation ID for tracing and audit hash chain */
+                "X-Correlation-Id": components["parameters"]["CorrelationId"];
+                /** @description Tenant identifier for RBAC and storage segregation */
+                "X-Tenant-Id": components["parameters"]["TenantId"];
+            };
+            path: {
+                /** @description Invoice identifier (UUID) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["InvoiceRecordResponse"];
+            403: components["responses"]["Forbidden"];
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
 }
