@@ -28,7 +28,9 @@ if ! check_chromium; then
     
     # bashrc/zshrc に追加（重複を避ける）
     grep -q "PDF_CHROMIUM_PATH" ~/.bashrc || echo "export PDF_CHROMIUM_PATH=$PLAYWRIGHT_CHROMIUM_PATH" >> ~/.bashrc
-    grep -q "PDF_CHROMIUM_PATH" ~/.zshrc 2>/dev/null || echo "export PDF_CHROMIUM_PATH=$PLAYWRIGHT_CHROMIUM_PATH" >> ~/.zshrc 2>/dev/null || true
+    if [ -f ~/.zshrc ]; then
+      grep -q "PDF_CHROMIUM_PATH" ~/.zshrc || echo "export PDF_CHROMIUM_PATH=$PLAYWRIGHT_CHROMIUM_PATH" >> ~/.zshrc
+    fi
     
     # apps/api/.env に追加
     ENV_FILE="/workspaces/prompt-pack/apps/api/.env"
