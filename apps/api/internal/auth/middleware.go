@@ -237,9 +237,14 @@ entry.PrevHash = prev.Hash
 }
 }
 
-// Compute hash
-data := fmt.Sprintf("%s|%s|%s|%s|%s", entry.ID, entry.TenantID, entry.Action, entry.Timestamp.Format(time.RFC3339), entry.PrevHash)
-entry.Hash = ComputeAuditHash(entry.PrevHash, data)
+// Compute hash using JSON serialization to avoid delimiter collision issues
+hash, err := computeEntryHash(&entry)
+if err != nil {
+// Log error but continue with empty hash rather than blocking audit
+slog.Error("failed to compute audit hash", "error", err, "entryID", entry.ID)
+hash = ""
+}
+entry.Hash = hash
 
 _ = audit.Record(ctx, entry)
 }
@@ -265,9 +270,14 @@ if prev, err := audit.Last(ctx, tenantID); err == nil {
 entry.PrevHash = prev.Hash
 }
 
-// Compute hash
-data := fmt.Sprintf("%s|%s|%s|%s|%s", entry.ID, entry.TenantID, entry.Action, entry.Timestamp.Format(time.RFC3339), entry.PrevHash)
-entry.Hash = ComputeAuditHash(entry.PrevHash, data)
+// Compute hash using JSON serialization to avoid delimiter collision issues
+hash, err := computeEntryHash(&entry)
+if err != nil {
+// Log error but continue with empty hash rather than blocking audit
+slog.Error("failed to compute audit hash", "error", err, "entryID", entry.ID)
+hash = ""
+}
+entry.Hash = hash
 
 _ = audit.Record(ctx, entry)
 }
@@ -295,6 +305,40 @@ func generateCorrID() string {
         return "fallback-corrid"
     }
     return hex.EncodeToString(b)
+}
+
+// computeEntryHash computes the hash for an audit log entry using JSON serialization
+// to avoid delimiter collision issues. All fields except Hash and PrevHash are included
+// to ensure the integrity of the complete audit record.
+func computeEntryHash(entry *AuditLogEntry) (string, error) {
+hashData := struct {
+ID        string `json:"id"`
+TenantID  string `json:"tenantId"`
+CorrID    string `json:"corrId"`
+Action    string `json:"action"`
+KeyID     string `json:"keyId,omitempty"`
+IPAddress string `json:"ipAddress,omitempty"`
+UserAgent string `json:"userAgent,omitempty"`
+Details   string `json:"details,omitempty"`
+Timestamp string `json:"timestamp"`
+PrevHash  string `json:"prevHash"`
+}{
+ID:        entry.ID,
+TenantID:  entry.TenantID,
+CorrID:    entry.CorrID,
+Action:    entry.Action,
+KeyID:     entry.KeyID,
+IPAddress: entry.IPAddress,
+UserAgent: entry.UserAgent,
+Details:   entry.Details,
+Timestamp: entry.Timestamp.Format(time.RFC3339),
+PrevHash:  entry.PrevHash,
+}
+dataBytes, err := json.Marshal(hashData)
+if err != nil {
+return "", fmt.Errorf("failed to marshal hash data: %w", err)
+}
+return ComputeAuditHash(entry.PrevHash, string(dataBytes)), nil
 }
 
 func generateID() string {
