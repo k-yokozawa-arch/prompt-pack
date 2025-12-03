@@ -153,7 +153,12 @@ func (s Service) GetInvoice(w http.ResponseWriter, r *http.Request, id string) {
 	pdfKey := fmt.Sprintf("%s/invoices/%s/invoice.pdf", tenantID, id)
 	pdfURL, _ := s.storage.GetSignedURL(ctx, pdfKey, s.cfg.SignURLTTL)
 
-	invoiceUUID, _ := uuid.Parse(id)
+	invoiceUUID, err := uuid.Parse(id)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "BAD_REQUEST", "message": "invalid invoice ID format"})
+		return
+	}
+
 	record := InvoiceRecord{
 		InvoiceId: openapi_types.UUID(invoiceUUID),
 		Status:    InvoiceRecordStatusIssued,
