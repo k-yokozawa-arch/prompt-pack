@@ -35,11 +35,19 @@ defer s.mu.RUnlock()
 // Search through all keys (not efficient for production)
 for _, key := range s.keys {
 if VerifyKey(rawKey, key.KeyHash, s.cfg) {
-tenant, ok := s.tenants[key.TenantID]
-if !ok {
-return nil, nil, ErrInvalidAPIKey
-}
-return tenant, key, nil
+    // Check if key is revoked
+    if key.RevokedAt != nil {
+        continue
+    }
+    // Check if key is expired
+    if key.ExpiresAt != nil && time.Now().After(*key.ExpiresAt) {
+        continue
+    }
+    tenant, ok := s.tenants[key.TenantID]
+    if !ok {
+        return nil, nil, ErrInvalidAPIKey
+    }
+    return tenant, key, nil
 }
 }
 
