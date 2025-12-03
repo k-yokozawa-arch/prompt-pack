@@ -59,10 +59,10 @@ errors = append(errors, errItem("JP-PINT-MATH-003", path+".quantity", "Quantity 
 if line.UnitPrice < 0 {
 errors = append(errors, errItem("JP-PINT-MATH-004", path+".unitPrice", "Unit price must be non-negative"))
 }
-if !containsUnitCode(v.Config.ValidUnitCodes, string(line.UnitCode)) {
+if !contains(v.Config.ValidUnitCodes, string(line.UnitCode)) {
 errors = append(errors, errItem("JP-PINT-CODE-001", path+".unitCode", "Invalid unit code"))
 }
-if !containsTaxCategory(v.Config.ValidTaxCategory, string(line.TaxCategory)) {
+if !contains(v.Config.ValidTaxCategory, string(line.TaxCategory)) {
 errors = append(errors, errItem("JP-PINT-CODE-002", path+".taxCategory", "Invalid tax category"))
 }
 if line.TaxRate < 0 || line.TaxRate > 1 {
@@ -108,16 +108,7 @@ p := math.Pow(10, float64(places))
 return math.Round(val*p) / p
 }
 
-func containsUnitCode(list []string, value string) bool {
-for _, item := range list {
-if item == value {
-return true
-}
-}
-return false
-}
-
-func containsTaxCategory(list []string, value string) bool {
+func contains(list []string, value string) bool {
 for _, item := range list {
 if item == value {
 return true
