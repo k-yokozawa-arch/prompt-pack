@@ -59,7 +59,7 @@ fi
 # oapi-codegen の確認
 if ! command -v oapi-codegen &> /dev/null; then
   echo "📦 Installing oapi-codegen..."
-  GOBIN=$(go env GOPATH)/bin GO111MODULE=on go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1
+  GOBIN=$(go env GOPATH)/bin go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1
 else
   echo "✅ oapi-codegen already installed"
 fi
