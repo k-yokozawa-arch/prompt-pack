@@ -384,7 +384,7 @@ components:
           type: string
         action:
           type: string
-          enum: [invoice.issue, invoice.validate]
+          enum: [invoice.issue, invoice.validate, invoice.get]
         timestamp:
           type: string
           format: date-time

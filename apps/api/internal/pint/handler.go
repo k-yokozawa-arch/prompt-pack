@@ -1,17 +1,17 @@
 package pint
 
 import (
-"context"
-"encoding/json"
-"errors"
-"fmt"
-"io"
-"log/slog"
-"net/http"
-"time"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"time"
 
-"github.com/google/uuid"
-openapi_types "github.com/oapi-codegen/runtime/types"
+	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Service wires config, validation, storage, and audit into HTTP handlers.
@@ -37,150 +37,151 @@ pdf:       NewPDFRenderer(cfg),
 
 // ValidateInvoice matches POST /invoices/validate
 func (s Service) ValidateInvoice(w http.ResponseWriter, r *http.Request) {
-ctx, corrID, tenantID, err := withRequestContext(r)
-if err != nil {
-writeJSON(w, http.StatusBadRequest, map[string]string{"code": "BAD_REQUEST", "message": err.Error()})
-return
-}
-logger := CorrelationLogger(s.logger, corrID, tenantID)
+	ctx, corrID, tenantID, err := withRequestContext(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "BAD_REQUEST", "message": err.Error()})
+		return
+	}
+	logger := CorrelationLogger(s.logger, corrID, tenantID)
 
-draft, err := decodeDraft(r.Body)
-if err != nil {
-writeJSON(w, http.StatusBadRequest, map[string]string{"code": "BAD_REQUEST", "message": err.Error()})
-return
-}
-result := s.validator.Validate(draft)
-if err := s.appendAudit(ctx, tenantID, corrID, "invoice.validate"); err != nil {
-logger.Warn("audit append failed", "error", err)
-}
-writeJSON(w, http.StatusOK, map[string]any{
-"valid":  result.Valid,
-"errors": result.Errors,
-"totals": result.Totals,
-})
+	draft, err := decodeDraft(r.Body)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "BAD_REQUEST", "message": err.Error()})
+		return
+	}
+	result := s.validator.Validate(draft)
+	if err := s.appendAudit(ctx, tenantID, corrID, string(InvoiceValidate)); err != nil {
+		logger.Warn("audit append failed", "error", err)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"valid":  result.Valid,
+		"errors": result.Errors,
+		"totals": result.Totals,
+	})
 }
 
 // IssueInvoice matches POST /invoices
 func (s Service) IssueInvoice(w http.ResponseWriter, r *http.Request) {
-ctx, corrID, tenantID, err := withRequestContext(r)
-if err != nil {
-writeJSON(w, http.StatusBadRequest, map[string]string{"code": "BAD_REQUEST", "message": err.Error()})
-return
-}
-logger := CorrelationLogger(s.logger, corrID, tenantID)
+	ctx, corrID, tenantID, err := withRequestContext(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "BAD_REQUEST", "message": err.Error()})
+		return
+	}
+	logger := CorrelationLogger(s.logger, corrID, tenantID)
 
-draft, err := decodeDraft(r.Body)
-if err != nil {
-writeJSON(w, http.StatusBadRequest, map[string]string{"code": "BAD_REQUEST", "message": err.Error()})
-return
-}
-validation := s.validator.Validate(draft)
-if !validation.Valid {
-writeJSON(w, http.StatusBadRequest, map[string]any{
-"errors": validation.Errors,
-})
-return
-}
+	draft, err := decodeDraft(r.Body)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "BAD_REQUEST", "message": err.Error()})
+		return
+	}
+	validation := s.validator.Validate(draft)
+	if !validation.Valid {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"errors": validation.Errors,
+		})
+		return
+	}
 
-invoiceID := newID()
-xmlBody, err := BuildUBL(invoiceID, draft, validation.Totals)
-if err != nil {
-logger.Error("ubl build failed", "error", err)
-writeJSON(w, http.StatusInternalServerError, map[string]any{
-"code":      "INTERNAL_ERROR",
-"message":   "failed to generate UBL XML",
-"retryable": true,
-})
-return
-}
+	invoiceID := newID()
+	xmlBody, err := BuildUBL(invoiceID, draft, validation.Totals)
+	if err != nil {
+		logger.Error("ubl build failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"code":      "INTERNAL_ERROR",
+			"message":   "failed to generate UBL XML",
+			"retryable": true,
+		})
+		return
+	}
 
-xmlKey := fmt.Sprintf("%s/invoices/%s/invoice.xml", tenantID, invoiceID)
-if err := s.storage.PutObject(ctx, xmlKey, []byte(xmlBody), "application/xml"); err != nil {
-logger.Error("store xml failed", "error", err)
-writeJSON(w, http.StatusInternalServerError, map[string]any{
-"code":      "INTERNAL_ERROR",
-"message":   "storage error",
-"retryable": true,
-})
-return
-}
-xmlURL, _ := s.storage.GetSignedURL(ctx, xmlKey, s.cfg.SignURLTTL)
+	xmlKey := fmt.Sprintf("%s/invoices/%s/invoice.xml", tenantID, invoiceID)
+	if err := s.storage.PutObject(ctx, xmlKey, []byte(xmlBody), "application/xml"); err != nil {
+		logger.Error("store xml failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"code":      "INTERNAL_ERROR",
+			"message":   "storage error",
+			"retryable": true,
+		})
+		return
+	}
+	xmlURL, _ := s.storage.GetSignedURL(ctx, xmlKey, s.cfg.SignURLTTL)
 
-var pdfURL string
-if s.cfg.PDFEnabled {
-pdfKey := fmt.Sprintf("%s/invoices/%s/invoice.pdf", tenantID, invoiceID)
-if pdfBytes, pdfErr := s.pdf.Render(ctx, draft, validation.Totals); pdfErr == nil {
-if err := s.storage.PutObject(ctx, pdfKey, pdfBytes, "application/pdf"); err != nil {
-logger.Warn("store pdf failed", "error", err)
-} else {
-pdfURL, _ = s.storage.GetSignedURL(ctx, pdfKey, s.cfg.SignURLTTL)
-}
-} else {
-logger.Warn("pdf render failed", "error", pdfErr)
-}
-}
+	var pdfURL string
+	if s.cfg.PDFEnabled {
+		pdfKey := fmt.Sprintf("%s/invoices/%s/invoice.pdf", tenantID, invoiceID)
+		if pdfBytes, pdfErr := s.pdf.Render(ctx, draft, validation.Totals); pdfErr == nil {
+			if err := s.storage.PutObject(ctx, pdfKey, pdfBytes, "application/pdf"); err != nil {
+				logger.Warn("store pdf failed", "error", err)
+			} else {
+				pdfURL, _ = s.storage.GetSignedURL(ctx, pdfKey, s.cfg.SignURLTTL)
+			}
+		} else {
+			logger.Warn("pdf render failed", "error", pdfErr)
+		}
+	}
 
-if err := s.appendAudit(ctx, tenantID, corrID, "invoice.issue"); err != nil {
-logger.Warn("audit append failed", "error", err)
-}
+	if err := s.appendAudit(ctx, tenantID, corrID, string(InvoiceIssue)); err != nil {
+		logger.Warn("audit append failed", "error", err)
+	}
 
-writeJSONStatus(w, http.StatusCreated, map[string]any{
-"invoiceId": invoiceID,
-"status":    "issued",
-"xmlUrl":    xmlURL,
-"pdfUrl":    pdfURL,
-"expiresAt": time.Now().Add(s.cfg.SignURLTTL).UTC().Format(time.RFC3339),
-})
+	writeJSONStatus(w, http.StatusCreated, map[string]any{
+		"invoiceId": invoiceID,
+		"status":    "issued",
+		"xmlUrl":    xmlURL,
+		"pdfUrl":    pdfURL,
+		"expiresAt": time.Now().Add(s.cfg.SignURLTTL).UTC().Format(time.RFC3339),
+	})
 }
 
 // GetInvoice matches GET /invoices/{id}
 func (s Service) GetInvoice(w http.ResponseWriter, r *http.Request, id string) {
-ctx, corrID, tenantID, err := withRequestContext(r)
-if err != nil {
-writeJSON(w, http.StatusBadRequest, map[string]string{"code": "BAD_REQUEST", "message": err.Error()})
-return
-}
-logger := CorrelationLogger(s.logger, corrID, tenantID)
+	ctx, corrID, tenantID, err := withRequestContext(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "BAD_REQUEST", "message": err.Error()})
+		return
+	}
+	logger := CorrelationLogger(s.logger, corrID, tenantID)
 
-xmlKey := fmt.Sprintf("%s/invoices/%s/invoice.xml", tenantID, id)
-meta, err := s.storage.Head(ctx, xmlKey)
-if err != nil {
-writeJSON(w, http.StatusNotFound, map[string]string{"code": "NOT_FOUND", "message": "invoice not found"})
-return
-}
+	xmlKey := fmt.Sprintf("%s/invoices/%s/invoice.xml", tenantID, id)
+	meta, err := s.storage.Head(ctx, xmlKey)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"code": "NOT_FOUND", "message": "invoice not found"})
+		return
+	}
 
-xmlURL, _ := s.storage.GetSignedURL(ctx, xmlKey, s.cfg.SignURLTTL)
-pdfKey := fmt.Sprintf("%s/invoices/%s/invoice.pdf", tenantID, id)
-pdfURL, _ := s.storage.GetSignedURL(ctx, pdfKey, s.cfg.SignURLTTL)
+	xmlURL, _ := s.storage.GetSignedURL(ctx, xmlKey, s.cfg.SignURLTTL)
+	pdfKey := fmt.Sprintf("%s/invoices/%s/invoice.pdf", tenantID, id)
+	pdfURL, _ := s.storage.GetSignedURL(ctx, pdfKey, s.cfg.SignURLTTL)
 
-invoiceUUID, err := uuid.Parse(id)
-if err != nil {
-    writeJSON(w, http.StatusBadRequest, map[string]string{"code": "BAD_REQUEST", "message": "invalid invoice ID format"})
-    return
-}
-record := InvoiceRecord{
-InvoiceId: openapi_types.UUID(invoiceUUID),
-Status:    InvoiceRecordStatusIssued,
-XmlUrl:    xmlURL,
-PdfUrl:    &pdfURL,
-CreatedAt: meta.UpdatedAt,
-UpdatedAt: meta.UpdatedAt,
-Audit: &AuditEntry{
-CorrId:    corrID,
-TenantId:  tenantID,
-Action:    InvoiceIssue,
-Actor:     "system",
-AuditId:   openapi_types.UUID(uuid.New()),
-Hash:      "",
-PrevHash:  "",
-Timestamp: meta.UpdatedAt,
-},
-}
+	invoiceUUID, err := uuid.Parse(id)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "BAD_REQUEST", "message": "invalid invoice ID format"})
+		return
+	}
 
-if err := s.appendAudit(ctx, tenantID, corrID, "invoice.get"); err != nil {
-logger.Warn("audit append failed", "error", err)
-}
-writeJSON(w, http.StatusOK, record)
+	record := InvoiceRecord{
+		InvoiceId: openapi_types.UUID(invoiceUUID),
+		Status:    InvoiceRecordStatusIssued,
+		XmlUrl:    xmlURL,
+		PdfUrl:    &pdfURL,
+		CreatedAt: meta.UpdatedAt,
+		UpdatedAt: meta.UpdatedAt,
+		Audit: &AuditEntry{
+			CorrId:    corrID,
+			TenantId:  tenantID,
+			Action:    InvoiceGet,
+			Actor:     "system",
+			AuditId:   openapi_types.UUID(uuid.New()),
+			Hash:      "",
+			PrevHash:  "",
+			Timestamp: meta.UpdatedAt,
+		},
+	}
+
+	if err := s.appendAudit(ctx, tenantID, corrID, string(InvoiceGet)); err != nil {
+		logger.Warn("audit append failed", "error", err)
+	}
+	writeJSON(w, http.StatusOK, record)
 }
 
 func decodeDraft(body io.ReadCloser) (InvoiceDraft, error) {
