@@ -1,113 +1,189 @@
 package pint
 
 import (
-	"bytes"
-	"context"
-	"encoding/base64"
-	"fmt"
-	"html/template"
-	"net/url"
-	"time"
+"bytes"
+"context"
+"encoding/base64"
+"fmt"
+"html/template"
+"net/url"
+"time"
 
-	"github.com/chromedp/cdproto/page"
-	"github.com/chromedp/chromedp"
+"github.com/chromedp/cdproto/page"
+"github.com/chromedp/chromedp"
 )
 
 // PDFRenderer renders invoice PDFs via headless Chromium.
 type PDFRenderer struct {
-	cfg Config
+cfg Config
 }
 
 func NewPDFRenderer(cfg Config) PDFRenderer {
-	return PDFRenderer{cfg: cfg}
+return PDFRenderer{cfg: cfg}
 }
 
 // Render builds an HTML from draft/totals and prints it to PDF. If Chromium is
 // unavailable, it returns an error so the caller can decide to retry or skip.
 func (r PDFRenderer) Render(ctx context.Context, draft InvoiceDraft, totals Totals) ([]byte, error) {
-	html, err := r.renderHTML(draft, totals)
-	if err != nil {
-		return nil, fmt.Errorf("render html: %w", err)
-	}
+html, err := r.renderHTML(draft, totals)
+if err != nil {
+return nil, fmt.Errorf("render html: %w", err)
+}
 
-	allocOpts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.Flag("headless", true),
-		chromedp.Flag("disable-gpu", true),
-		chromedp.Flag("no-sandbox", true),
-	)
-	if r.cfg.PDFChromiumPath != "" {
-		allocOpts = append(allocOpts, chromedp.ExecPath(r.cfg.PDFChromiumPath))
-	}
+allocOpts := append(chromedp.DefaultExecAllocatorOptions[:],
+chromedp.Flag("headless", true),
+chromedp.Flag("disable-gpu", true),
+chromedp.Flag("no-sandbox", true),
+)
+if r.cfg.PDFChromiumPath != "" {
+allocOpts = append(allocOpts, chromedp.ExecPath(r.cfg.PDFChromiumPath))
+}
 
-	allocCtx, cancelAlloc := chromedp.NewExecAllocator(ctx, allocOpts...)
-	defer cancelAlloc()
+allocCtx, cancelAlloc := chromedp.NewExecAllocator(ctx, allocOpts...)
+defer cancelAlloc()
 
-	ctxTimeout := r.cfg.PDFTimeout
-	if ctxTimeout <= 0 {
-		ctxTimeout = 15 * time.Second
-	}
-	runCtx, cancelRun := chromedp.NewContext(allocCtx)
-	defer cancelRun()
-	runCtx, cancelTimeout := context.WithTimeout(runCtx, ctxTimeout)
-	defer cancelTimeout()
+ctxTimeout := r.cfg.PDFTimeout
+if ctxTimeout <= 0 {
+ctxTimeout = 15 * time.Second
+}
+runCtx, cancelRun := chromedp.NewContext(allocCtx)
+defer cancelRun()
+runCtx, cancelTimeout := context.WithTimeout(runCtx, ctxTimeout)
+defer cancelTimeout()
 
-	var pdfBuf []byte
-	dataURL := "data:text/html," + url.PathEscape(html)
-	err = chromedp.Run(runCtx,
-		chromedp.Navigate(dataURL),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			buf, _, perr := page.PrintToPDF().WithPrintBackground(true).Do(ctx)
-			if perr == nil {
-				pdfBuf = buf
-			}
-			return perr
-		}),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("chromedp run failed: %w", err)
-	}
-	return pdfBuf, nil
+var pdfBuf []byte
+dataURL := "data:text/html," + url.PathEscape(html)
+err = chromedp.Run(runCtx,
+chromedp.Navigate(dataURL),
+chromedp.ActionFunc(func(ctx context.Context) error {
+buf, _, perr := page.PrintToPDF().WithPrintBackground(true).Do(ctx)
+if perr == nil {
+pdfBuf = buf
+}
+return perr
+}),
+)
+if err != nil {
+return nil, fmt.Errorf("chromedp run failed: %w", err)
+}
+return pdfBuf, nil
+}
+
+// pdfDraftData is a struct for template rendering with string types
+type pdfDraftData struct {
+Supplier      pdfPartyData
+Customer      pdfPartyData
+IssueDate     string
+DueDate       string
+Notes         string
+Currency      string
+InvoiceNumber string
+Lines         []pdfLineData
+}
+
+type pdfPartyData struct {
+Name        string
+TaxId       string
+Postal      string
+Address     string
+CountryCode string
+}
+
+type pdfLineData struct {
+Description string
+Quantity    float64
+UnitCode    string
+UnitPrice   float64
+TaxCategory string
+TaxRate     float64
+}
+
+func convertDraftForPDF(draft InvoiceDraft) pdfDraftData {
+notes := ""
+if draft.Notes != nil {
+notes = *draft.Notes
+}
+invoiceNumber := ""
+if draft.InvoiceNumber != nil {
+invoiceNumber = *draft.InvoiceNumber
+}
+
+data := pdfDraftData{
+Supplier: pdfPartyData{
+Name:        draft.Supplier.Name,
+TaxId:       draft.Supplier.TaxId,
+Postal:      draft.Supplier.Postal,
+Address:     draft.Supplier.Address,
+CountryCode: string(draft.Supplier.CountryCode),
+},
+Customer: pdfPartyData{
+Name:        draft.Customer.Name,
+TaxId:       draft.Customer.TaxId,
+Postal:      draft.Customer.Postal,
+Address:     draft.Customer.Address,
+CountryCode: string(draft.Customer.CountryCode),
+},
+IssueDate:     draft.IssueDate.String(),
+DueDate:       draft.DueDate.String(),
+Notes:         notes,
+Currency:      string(draft.Currency),
+InvoiceNumber: invoiceNumber,
+}
+
+for _, line := range draft.Lines {
+data.Lines = append(data.Lines, pdfLineData{
+Description: line.Description,
+Quantity:    line.Quantity,
+UnitCode:    string(line.UnitCode),
+UnitPrice:   line.UnitPrice,
+TaxCategory: string(line.TaxCategory),
+TaxRate:     line.TaxRate,
+})
+}
+return data
 }
 
 func (r PDFRenderer) renderHTML(draft InvoiceDraft, totals Totals) (string, error) {
-	tz, _ := time.LoadLocation(defaultString(r.cfg.PDFTimeZone, "Asia/Tokyo"))
-	tmpl := template.Must(template.New("invoice").Funcs(template.FuncMap{
-		"money": func(v float64) string {
-			return fmt.Sprintf("¥%s", formatNumber(v))
-		},
-		"date": func(v string) string {
-			t, err := time.Parse("2006-01-02", v)
-			if err != nil {
-				return v
-			}
-			return t.In(tz).Format("2006/01/02")
-		},
-		"escape": htmlEscape,
-		"mul":    mul,
-		"mul100": mul100,
-	}).Parse(htmlTemplate))
+tz, _ := time.LoadLocation(defaultString(r.cfg.PDFTimeZone, "Asia/Tokyo"))
+tmpl := template.Must(template.New("invoice").Funcs(template.FuncMap{
+"money": func(v float64) string {
+return fmt.Sprintf("¥%s", formatNumber(v))
+},
+"date": func(v string) string {
+t, err := time.Parse("2006-01-02", v)
+if err != nil {
+return v
+}
+return t.In(tz).Format("2006/01/02")
+},
+"escape": htmlEscape,
+"mul":    mul,
+"mul100": mul100,
+}).Parse(htmlTemplate))
 
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, struct {
-		Draft  InvoiceDraft
-		Totals Totals
-		Now    string
-	}{
-		Draft:  draft,
-		Totals: totals,
-		Now:    time.Now().In(tz).Format("2006/01/02 15:04"),
-	}); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
+pdfData := convertDraftForPDF(draft)
+
+var buf bytes.Buffer
+if err := tmpl.Execute(&buf, struct {
+Draft  pdfDraftData
+Totals Totals
+Now    string
+}{
+Draft:  pdfData,
+Totals: totals,
+Now:    time.Now().In(tz).Format("2006/01/02 15:04"),
+}); err != nil {
+return "", err
+}
+return buf.String(), nil
 }
 
 func formatNumber(v float64) string {
-	return template.HTMLEscapeString(fmt.Sprintf("%0.0f", v))
+return template.HTMLEscapeString(fmt.Sprintf("%0.0f", v))
 }
 
 func htmlEscape(s string) string {
-	return template.HTMLEscapeString(s)
+return template.HTMLEscapeString(s)
 }
 
 var htmlTemplate = `
@@ -151,7 +227,7 @@ var htmlTemplate = `
         <div class="value">{{.Draft.Supplier.Address}}</div>
         <div class="value">{{.Draft.Supplier.Postal}}</div>
         <div class="value">{{.Draft.Supplier.CountryCode}}</div>
-        <div class="value">登録番号: {{.Draft.Supplier.TaxID}}</div>
+        <div class="value">登録番号: {{.Draft.Supplier.TaxId}}</div>
       </div>
       <div class="col">
         <div class="label">カスタマー</div>
@@ -159,7 +235,7 @@ var htmlTemplate = `
         <div class="value">{{.Draft.Customer.Address}}</div>
         <div class="value">{{.Draft.Customer.Postal}}</div>
         <div class="value">{{.Draft.Customer.CountryCode}}</div>
-        <div class="value">登録番号: {{.Draft.Customer.TaxID}}</div>
+        <div class="value">登録番号: {{.Draft.Customer.TaxId}}</div>
       </div>
     </div>
   </div>
@@ -211,15 +287,15 @@ func mul100(v float64) float64 { return v * 100 }
 
 // embed font as data URI if needed
 func embedFont(base64Data string) string {
-	if base64Data == "" {
-		return ""
-	}
-	return fmt.Sprintf("@font-face{font-family:'Noto Sans JP';src:url('data:font/woff2;base64,%s') format('woff2');}", base64.StdEncoding.EncodeToString([]byte(base64Data)))
+if base64Data == "" {
+return ""
+}
+return fmt.Sprintf("@font-face{font-family:'Noto Sans JP';src:url('data:font/woff2;base64,%s') format('woff2');}", base64.StdEncoding.EncodeToString([]byte(base64Data)))
 }
 
 func defaultString(s, def string) string {
-	if s == "" {
-		return def
-	}
-	return s
+if s == "" {
+return def
+}
+return s
 }
